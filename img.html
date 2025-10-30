@@ -1,63 +1,269 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Offline Random Image Slideshow (folders + files)</title>
+  <title>ORIS Image Slideshow</title>
   <style>
-    :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;color-scheme:light}
-    body{margin:0;padding:18px;background:#f6f7fb;color:#0b1220}
-    h1{margin:0 0 12px;font-size:20px}
+    :root {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial;
+      color-scheme: dark;
+    }
 
-    .topbar{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
-    .controls-row{display:flex;gap:10px;flex-wrap:wrap}
+    body {
+      margin: 0;
+      padding: 18px;
+      background: #121216;
+      color: #e0e0e0;
+    }
 
-    .btn{background:#0b63ff;color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
-    .btn.secondary{background:#eef2ff;color:#0b1220}
-    .btn.ghost{background:transparent;border:1px solid #cbd5ff;color:#0b1220}
+    h1 {
+      margin: 0 0 12px;
+      font-size: 20px;
+      color: #f0f0f0;
+    }
 
-    input[type=file]{display:none}
-    #gallery{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
-    .thumb{width:160px;height:120px;overflow:hidden;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(3,10,30,0.06);cursor:pointer}
-    .thumb img{max-width:100%;max-height:100%;object-fit:cover}
+    .topbar {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
 
-    #overlay{position:fixed;inset:0;display:none;background:rgba(6,10,20,0.95);align-items:center;justify-content:center;z-index:999;padding:0;touch-action:none}
-    #overlay.open{display:flex}
-    #slideBox{position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:100%}
-    #slideImg{max-width:98%;max-height:98%;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,0.6)}
+    .controls-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
 
-    #overlayCaption{position:absolute;top:50px;width:100%;text-align:center;color:#fff;font-size:16px;font-weight:500;text-shadow:0 0 6px rgba(0,0,0,0.7);pointer-events:none}
+    .btn {
+      background: #1e88e5;
+      color: #fff;
+      border: 0;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
 
-    #bottomControls{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;background:rgba(0,0,0,0.3);padding:6px 10px;border-radius:8px}
-    #durationControl{position:absolute;bottom:70px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.3);padding:6px 10px;border-radius:8px;color:#fff;display:flex;align-items:center;gap:6px}
+    .btn:hover {
+      background: #1565c0;
+    }
 
-    #fullscreenBtn{position:absolute;top:10px;right:10px;z-index:10}
-    #closeOverlay{position:absolute;top:10px;left:10px;z-index:10}
+    .btn.primary {
+      background: #d32f2f;
+      color: #fff;
+      font-size: 105%;
+    }
 
-    .meta{font-size:13px;color:#445;margin-top:6px}
-    @media (max-width:600px){ .thumb{width:120px;height:90px} }
-    #wakeLockNotice{color:#c00;margin-top:6px;font-size:13px}
+    .btn.secondary {
+      background: #424242;
+      color: #e0e0e0;
+    }
 
-    #folderPanel{margin-top:10px;margin-bottom:10px;display:none}
-    #folderToggle{cursor:pointer;color:#0b63ff;margin-bottom:4px;user-select:none}
-    #folderFilters{display:flex;gap:10px;flex-wrap:wrap}
-    #folderFilters label{background:#eef2ff;padding:4px 8px;border-radius:6px;cursor:pointer;user-select:none}
-    #selectAllBtn{cursor:pointer;color:#0b63ff;margin-bottom:4px;user-select:none;display:none}
+    .btn.secondary:hover {
+      background: #616161;
+    }
+
+    .btn.ghost {
+      background: transparent;
+      border: 1px solid #888;
+      color: #e0e0e0;
+    }
+
+    input[type=file] {
+      display: none;
+    }
+
+    #gallery {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .thumb {
+      width: 160px;
+      height: 120px;
+      overflow: hidden;
+      border-radius: 8px;
+      background: #1f1f1f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+      cursor: pointer;
+    }
+
+    .thumb img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: cover;
+    }
+
+    #overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      background: rgba(18, 18, 22, 0.95);
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      padding: 0;
+      touch-action: none;
+    }
+
+    #overlay.open {
+      display: flex;
+    }
+
+    #slideBox {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+    }
+
+    #slideImg {
+      max-width: 98%;
+      max-height: 98%;
+      border-radius: 8px;
+      box-shadow: 0 8px 40px rgba(0, 0, 0, 0.8);
+    }
+
+    #overlayCaption {
+      position: absolute;
+      top: 50px;
+      width: 100%;
+      text-align: center;
+      color: #e0e0e0;
+      font-size: 16px;
+      font-weight: 500;
+      text-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+      pointer-events: none;
+    }
+
+    #bottomControls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: rgba(30, 30, 30, 0.7);
+      padding: 6px 10px;
+      border-radius: 8px;
+    }
+
+    #durationControl {
+      position: absolute;
+      bottom: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(30, 30, 30, 0.7);
+      padding: 6px 10px;
+      border-radius: 8px;
+      color: #e0e0e0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #fullscreenBtn,
+    #closeOverlay {
+      z-index: 10;
+    }
+
+    #fullscreenBtn {
+      top: 10px;
+      right: 10px;
+      position: absolute;
+    }
+
+    #closeOverlay {
+      top: 10px;
+      left: 10px;
+      position: absolute;
+    }
+
+    .meta {
+      font-size: 13px;
+      color: #888;
+      margin-top: 6px;
+    }
+
+    @media (max-width:600px) {
+      .thumb {
+        width: 120px;
+        height: 90px;
+      }
+    }
+
+    #wakeLockNotice {
+      color: #f44336;
+      margin-top: 6px;
+      font-size: 13px;
+    }
+
+    #folderPanel {
+      margin-top: 10px;
+      margin-bottom: 10px;
+      display: none;
+    }
+
+    #folderToggle {
+      cursor: pointer;
+      color: #64b5f6;
+      margin-bottom: 4px;
+      user-select: none;
+    }
+
+    #folderFilters {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    #folderFilters label {
+      background: #1f1f1f;
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      user-select: none;
+      color: #e0e0e0;
+    }
+
+    #folderFilters input[type=checkbox] {
+      accent-color: #64b5f6;
+    }
+
+    #selectAllBtn {
+      cursor: pointer;
+      color: #64b5f6;
+      margin-bottom: 4px;
+      user-select: none;
+      display: none;
+    }
   </style>
 </head>
+
 <body>
-  <h1>Offline Random Image Slideshow (folders + files)</h1>
+  <h1>ORIS Image Slideshow</h1>
 
   <div class="topbar">
     <div class="controls-row">
-      <label class="btn ghost" id="chooseBtn">Choose files / folders</label>
+      <button class="btn primary" id="chooseBtn">Choose files / folders</button>
       <input id="fileInput" type="file" multiple webkitdirectory directory />
+      <button class="btn secondary" id="shuffleBtn">Shuffle</button>
       <button class="btn ghost" id="clearBtn">Clear</button>
     </div>
     <div class="controls-row">
-      <label for="startBtn" class="btn" id="startBtn">Start Slideshow</label>
+      <button for="startBtn" class="btn primary" id="startBtn">Start Slideshow</button>
       <button class="btn" id="randomBtn">Random</button>
-      <button class="btn secondary" id="shuffleBtn">Shuffle</button>
     </div>
   </div>
 
@@ -91,47 +297,49 @@
   </div>
 
   <script>
-    const chooseBtn=document.getElementById('chooseBtn');
-    const fileInput=document.getElementById('fileInput');
-    const gallery=document.getElementById('gallery');
-    const info=document.getElementById('info');
-    const wakeLockNotice=document.getElementById('wakeLockNotice');
-    const shuffleBtn=document.getElementById('shuffleBtn');
-    const randomBtn=document.getElementById('randomBtn');
-    const clearBtn=document.getElementById('clearBtn');
-    const startBtn=document.getElementById('startBtn');
-    const folderFilters=document.getElementById('folderFilters');
-    const folderPanel=document.getElementById('folderPanel');
-    const folderToggle=document.getElementById('folderToggle');
-    const selectAllBtn=document.getElementById('selectAllBtn');
+    const chooseBtn = document.getElementById('chooseBtn');
+    const fileInput = document.getElementById('fileInput');
+    const gallery = document.getElementById('gallery');
+    const info = document.getElementById('info');
+    const wakeLockNotice = document.getElementById('wakeLockNotice');
+    const shuffleBtn = document.getElementById('shuffleBtn');
+    const randomBtn = document.getElementById('randomBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const startBtn = document.getElementById('startBtn');
+    const folderFilters = document.getElementById('folderFilters');
+    const folderPanel = document.getElementById('folderPanel');
+    const folderToggle = document.getElementById('folderToggle');
+    const selectAllBtn = document.getElementById('selectAllBtn');
 
-    const overlay=document.getElementById('overlay');
-    const slideImg=document.getElementById('slideImg');
-    const overlayCaption=document.getElementById('overlayCaption');
-    const playPauseBtn=document.getElementById('playPauseBtn');
-    const prevBtn=document.getElementById('prevBtn');
-    const nextBtn=document.getElementById('nextBtn');
-    const durationInput=document.getElementById('durationInput');
-    const closeOverlay=document.getElementById('closeOverlay');
-    const fullscreenBtn=document.getElementById('fullscreenBtn');
+    const overlay = document.getElementById('overlay');
+    const slideImg = document.getElementById('slideImg');
+    const overlayCaption = document.getElementById('overlayCaption');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const durationInput = document.getElementById('durationInput');
+    const closeOverlay = document.getElementById('closeOverlay');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
 
-    let images=[],filteredImages=[],currentIndex=0,intervalMs=parseInt(durationInput.value,10)*1000,slideshowTimer=null,touchStartX=0;
-    let wakeLock=null;
+    let images = [], filteredImages = [], currentIndex = 0, intervalMs = parseInt(durationInput.value, 10) * 1000, slideshowTimer = null, touchStartX = 0;
+    let wakeLock = null;
 
-    chooseBtn.addEventListener('click',()=>fileInput.click());
-    fileInput.addEventListener('change',e=>handleFiles(e.target.files));
+    chooseBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', e => handleFiles(e.target.files));
 
-    function handleFiles(fileList){
-      images=[];
-      filteredImages=[];
-      const arr=Array.from(fileList).filter(f=>f.type&&f.type.startsWith('image/'));
-      if(!arr.length) return;
-      const paths=arr.map(f=>f.webkitRelativePath||f.name);
-      const ancestor=deepestCommonAncestor(paths);
-      arr.forEach(f=>{
-        const relPath=(f.webkitRelativePath||f.name).substring(ancestor.length).replace(/^\/+/, '');
-        const folder=relPath.includes('/')?relPath.split('/').slice(0,-1).join('/'):'(root)';
-        const obj={name:f.name,folder:folder,url:URL.createObjectURL(f)};
+    function handleFiles(fileList)
+    {
+      images = [];
+      filteredImages = [];
+      const arr = Array.from(fileList).filter(f => f.type && f.type.startsWith('image/'));
+      if (!arr.length) return;
+      const paths = arr.map(f => f.webkitRelativePath || f.name);
+      const ancestor = deepestCommonAncestor(paths);
+      arr.forEach(f =>
+      {
+        const relPath = (f.webkitRelativePath || f.name).substring(ancestor.length).replace(/^\/+/, '');
+        const folder = relPath.includes('/') ? relPath.split('/').slice(0, -1).join('/') : '(root)';
+        const obj = { name: f.name, folder: folder, url: URL.createObjectURL(f) };
         images.push(obj);
       });
       updateInfo();
@@ -139,141 +347,163 @@
       applyFolderFilter();
     }
 
-    function deepestCommonAncestor(paths){
-      if(!paths.length) return '';
-      const splitPaths=paths.map(p=>p.split('/'));
-      let i=0;
-      while(true){
-        const segment=splitPaths[0][i];
-        if(segment===undefined) break;
-        if(!splitPaths.every(sp=>sp[i]===segment)) break;
+    function deepestCommonAncestor(paths)
+    {
+      if (!paths.length) return '';
+      const splitPaths = paths.map(p => p.split('/'));
+      let i = 0;
+      while (true)
+      {
+        const segment = splitPaths[0][i];
+        if (segment === undefined) break;
+        if (!splitPaths.every(sp => sp[i] === segment)) break;
         i++;
       }
-      return splitPaths[0].slice(0,i).join('/');
+      return splitPaths[0].slice(0, i).join('/');
     }
 
-    function updateInfo(){ info.textContent=`${images.length} image${images.length!==1?'s':''} loaded.`; }
+    function updateInfo() { info.textContent = `${images.length} image${images.length !== 1 ? 's' : ''} loaded.`; }
 
-    function renderFolderFilters(){
-      folderFilters.innerHTML='';
-      const folders=[...new Set(images.map(i=>i.folder))].sort();
-      folders.forEach(folder=>{
-        const id='folder_'+folder.replace(/[^a-z0-9]/gi,'_');
-        const label=document.createElement('label');
-        label.dataset.folder=folder;
-        label.innerHTML=`<input type="checkbox" checked> ${folder} (${images.filter(img=>img.folder===folder).length})`;
+    function renderFolderFilters()
+    {
+      folderFilters.innerHTML = '';
+      const folders = [...new Set(images.map(i => i.folder))].sort();
+      folders.forEach(folder =>
+      {
+        const id = 'folder_' + folder.replace(/[^a-z0-9]/gi, '_');
+        const label = document.createElement('label');
+        label.dataset.folder = folder;
+        label.innerHTML = `<input type="checkbox" checked> ${folder} (${images.filter(img => img.folder === folder).length})`;
         folderFilters.appendChild(label);
-        label.querySelector('input').addEventListener('change',applyFolderFilter);
+        label.querySelector('input').addEventListener('change', applyFolderFilter);
       });
-      folderPanel.style.display='block';
-      folderFilters.style.display='flex';
-      selectAllBtn.style.display='block';
+      folderPanel.style.display = 'block';
+      folderFilters.style.display = 'flex';
+      selectAllBtn.style.display = 'block';
     }
 
-    function applyFolderFilter(){
-      const activeFolders=[...folderFilters.querySelectorAll('input:checked')].map(i=>i.parentNode.dataset.folder);
-      filteredImages=images.filter(img=>activeFolders.includes(img.folder));
+    function applyFolderFilter()
+    {
+      const activeFolders = [...folderFilters.querySelectorAll('input:checked')].map(i => i.parentNode.dataset.folder);
+      filteredImages = images.filter(img => activeFolders.includes(img.folder));
       renderGallery();
     }
 
-    selectAllBtn.addEventListener('click',()=>{
-      const checkboxes=folderFilters.querySelectorAll('input');
-      const anyUnchecked=[...checkboxes].some(c=>!c.checked);
-      checkboxes.forEach(c=>c.checked=anyUnchecked);
+    selectAllBtn.addEventListener('click', () =>
+    {
+      const checkboxes = folderFilters.querySelectorAll('input');
+      const anyUnchecked = [...checkboxes].some(c => !c.checked);
+      checkboxes.forEach(c => c.checked = anyUnchecked);
       applyFolderFilter();
     });
 
-    folderToggle.addEventListener('click',()=>{
-      const visible=folderFilters.style.display==='flex';
-      folderFilters.style.display=visible?'none':'flex';
-      selectAllBtn.style.display=visible?'none':'block';
+    folderToggle.addEventListener('click', () =>
+    {
+      const visible = folderFilters.style.display === 'flex';
+      folderFilters.style.display = visible ? 'none' : 'flex';
+      selectAllBtn.style.display = visible ? 'none' : 'block';
     });
 
-    function renderGallery(){
-      gallery.innerHTML='';
-      (filteredImages.length?filteredImages:images).forEach((it,i)=>{
-        const d=document.createElement('div'); d.className='thumb';
-        const img=document.createElement('img'); img.src=it.url; img.alt=it.name;
-        d.appendChild(img); d.addEventListener('click',()=>openOverlay(i));
+    function renderGallery()
+    {
+      gallery.innerHTML = '';
+      (filteredImages.length ? filteredImages : images).forEach((it, i) =>
+      {
+        const d = document.createElement('div'); d.className = 'thumb';
+        const img = document.createElement('img'); img.src = it.url; img.alt = it.name;
+        d.appendChild(img); d.addEventListener('click', () => openOverlay(i));
         gallery.appendChild(d);
       });
     }
 
-    function openOverlay(index){
-      const arr=filteredImages.length?filteredImages:images;
-      currentIndex=((index%arr.length)+arr.length)%arr.length;
-      const it=arr[currentIndex]; slideImg.src=it.url; overlayCaption.textContent=`${it.folder} / ${it.name}`;
+    function openOverlay(index)
+    {
+      const arr = filteredImages.length ? filteredImages : images;
+      currentIndex = ((index % arr.length) + arr.length) % arr.length;
+      const it = arr[currentIndex]; slideImg.src = it.url; overlayCaption.textContent = `${it.folder} / ${it.name}`;
       overlay.classList.add('open');
     }
-    function close(){ overlay.classList.remove('open'); stopSlideshow(); releaseWakeLock(); }
-    function showAt(i){
-      const arr=filteredImages.length?filteredImages:images;
-      currentIndex=((i%arr.length)+arr.length)%arr.length;
-      const it=arr[currentIndex]; slideImg.src=it.url; overlayCaption.textContent=`${it.folder} / ${it.name}`;
+    function close() { overlay.classList.remove('open'); stopSlideshow(); releaseWakeLock(); }
+    function showAt(i)
+    {
+      const arr = filteredImages.length ? filteredImages : images;
+      currentIndex = ((i % arr.length) + arr.length) % arr.length;
+      const it = arr[currentIndex]; slideImg.src = it.url; overlayCaption.textContent = `${it.folder} / ${it.name}`;
     }
-    function next(){ showAt(currentIndex+1); }
-    function prev(){ showAt(currentIndex-1); }
+    function next() { showAt(currentIndex + 1); }
+    function prev() { showAt(currentIndex - 1); }
 
-    async function requestWakeLock(){
-      if('wakeLock' in navigator){
-        try{
-          wakeLock=await navigator.wakeLock.request('screen');
-          wakeLock.addEventListener('release',()=>console.log('WakeLock released'));
-          wakeLockNotice.textContent='';
-        } catch(err){
-          console.warn('WakeLock failed:',err);
-          wakeLockNotice.textContent='Wake Lock could not be acquired. Please run via localhost or HTTPS for full functionality.';
+    async function requestWakeLock()
+    {
+      if ('wakeLock' in navigator)
+      {
+        try
+        {
+          wakeLock = await navigator.wakeLock.request('screen');
+          wakeLock.addEventListener('release', () => console.log('WakeLock released'));
+          wakeLockNotice.textContent = '';
+        } catch (err)
+        {
+          console.warn('WakeLock failed:', err);
+          wakeLockNotice.textContent = 'Wake Lock could not be acquired. Please run via localhost or HTTPS for full functionality.';
         }
-      } else {
-        wakeLockNotice.textContent='Wake Lock not supported in this browser. Run via localhost/HTTPS for screen to stay on.';
+      } else
+      {
+        wakeLockNotice.textContent = 'Wake Lock not supported in this browser. Run via localhost/HTTPS for screen to stay on.';
       }
     }
-    function releaseWakeLock(){ if(wakeLock){ wakeLock.release(); wakeLock=null; } wakeLockNotice.textContent=''; }
+    function releaseWakeLock() { if (wakeLock) { wakeLock.release(); wakeLock = null; } wakeLockNotice.textContent = ''; }
 
-    function startSlideshow(){
-      const arr=filteredImages.length?filteredImages:images;
-      if(!arr.length) return alert('Please select images or folders first');
+    function startSlideshow()
+    {
+      const arr = filteredImages.length ? filteredImages : images;
+      if (!arr.length) return alert('Please select images or folders first');
       overlay.classList.add('open');
-      intervalMs=Math.max(1,parseFloat(durationInput.value)||2)*1000;
+      intervalMs = Math.max(1, parseFloat(durationInput.value) || 2) * 1000;
       showAt(currentIndex);
       stopSlideshow();
-      slideshowTimer=setInterval(()=>{next();},intervalMs);
-      playPauseBtn.textContent='⏸ Pause';
+      slideshowTimer = setInterval(() => { next(); }, intervalMs);
+      playPauseBtn.textContent = '⏸ Pause';
       requestWakeLock();
     }
-    function stopSlideshow(){ if(slideshowTimer){clearInterval(slideshowTimer); slideshowTimer=null;} playPauseBtn.textContent='▶ Play'; releaseWakeLock(); }
-    function togglePlayPause(){ if(slideshowTimer) stopSlideshow(); else startSlideshow(); }
+    function stopSlideshow() { if (slideshowTimer) { clearInterval(slideshowTimer); slideshowTimer = null; } playPauseBtn.textContent = '▶ Play'; releaseWakeLock(); }
+    function togglePlayPause() { if (slideshowTimer) stopSlideshow(); else startSlideshow(); }
 
-    function shuffleArray(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
+    function shuffleArray(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]]; } return a; }
 
-    shuffleBtn.addEventListener('click',()=>{ if(!images.length) return alert('No images to shuffle'); images=shuffleArray(images); applyFolderFilter(); });
-    randomBtn.addEventListener('click',()=>{ if(!images.length) return alert('No images loaded'); openOverlay(Math.floor(Math.random()*images.length)); });
-    clearBtn.addEventListener('click',()=>{ images.forEach(i=>{try{URL.revokeObjectURL(i.url);}catch(e){}}); images=[]; filteredImages=[]; folderFilters.innerHTML=''; folderPanel.style.display='none'; selectAllBtn.style.display='none'; gallery.innerHTML=''; updateInfo(); stopSlideshow(); overlay.classList.remove('open'); });
+    shuffleBtn.addEventListener('click', () => { if (!images.length) return alert('No images to shuffle'); images = shuffleArray(images); applyFolderFilter(); });
+    randomBtn.addEventListener('click', () => { if (!images.length) return alert('No images loaded'); openOverlay(Math.floor(Math.random() * images.length)); });
+    clearBtn.addEventListener('click', () => { images.forEach(i => { try { URL.revokeObjectURL(i.url); } catch (e) { } }); images = []; filteredImages = []; folderFilters.innerHTML = ''; folderPanel.style.display = 'none'; selectAllBtn.style.display = 'none'; gallery.innerHTML = ''; updateInfo(); stopSlideshow(); overlay.classList.remove('open'); });
 
-    startBtn.addEventListener('click',()=>startSlideshow());
-    playPauseBtn.addEventListener('click',togglePlayPause);
-    nextBtn.addEventListener('click',()=>{ stopSlideshow(); next(); });
-    prevBtn.addEventListener('click',()=>{ stopSlideshow(); prev(); });
-    closeOverlay.addEventListener('click',close);
+    startBtn.addEventListener('click', () => startSlideshow());
+    playPauseBtn.addEventListener('click', togglePlayPause);
+    nextBtn.addEventListener('click', () => { stopSlideshow(); next(); });
+    prevBtn.addEventListener('click', () => { stopSlideshow(); prev(); });
+    closeOverlay.addEventListener('click', close);
 
-    fullscreenBtn.addEventListener('click',()=>{
-      if(!document.fullscreenElement){ overlay.requestFullscreen().catch(err=>console.warn(err)); }
-      else{ document.exitFullscreen(); }
+    fullscreenBtn.addEventListener('click', () =>
+    {
+      if (!document.fullscreenElement) { overlay.requestFullscreen().catch(err => console.warn(err)); }
+      else { document.exitFullscreen(); }
     });
 
-    durationInput.addEventListener('change',()=>{ intervalMs=Math.max(1,parseFloat(durationInput.value)||2)*1000; if(slideshowTimer){ startSlideshow(); } });
+    durationInput.addEventListener('change', () => { intervalMs = Math.max(1, parseFloat(durationInput.value) || 2) * 1000; if (slideshowTimer) { startSlideshow(); } });
 
-    document.addEventListener('keydown',(e)=>{ if(!overlay.classList.contains('open')) return;
-      if(e.key==='Escape') close(); if(e.key==='ArrowRight'){stopSlideshow(); next();}
-      if(e.key==='ArrowLeft'){stopSlideshow(); prev();} if(e.key===' '){e.preventDefault(); togglePlayPause();}
+    document.addEventListener('keydown', (e) =>
+    {
+      if (!overlay.classList.contains('open')) return;
+      if (e.key === 'Escape') close(); if (e.key === 'ArrowRight') { stopSlideshow(); next(); }
+      if (e.key === 'ArrowLeft') { stopSlideshow(); prev(); } if (e.key === ' ') { e.preventDefault(); togglePlayPause(); }
     });
 
-    overlay.addEventListener('click',(e)=>{ if(e.target===overlay) close(); });
-    overlay.addEventListener('touchstart',e=>{ touchStartX=e.changedTouches[0].screenX;},{passive:true});
-    overlay.addEventListener('touchend',e=>{
-      const dx=e.changedTouches[0].screenX-touchStartX;
-      if(Math.abs(dx)>50){ if(dx>0){prev();} else{next();} }
-    },{passive:true});
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    overlay.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
+    overlay.addEventListener('touchend', e =>
+    {
+      const dx = e.changedTouches[0].screenX - touchStartX;
+      if (Math.abs(dx) > 50) { if (dx > 0) { prev(); } else { next(); } }
+    }, { passive: true });
   </script>
 </body>
+
 </html>

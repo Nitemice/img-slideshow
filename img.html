@@ -8,11 +8,14 @@
     :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;color-scheme:light}
     body{margin:0;padding:18px;background:#f6f7fb;color:#0b1220}
     h1{margin:0 0 12px;font-size:20px}
-    .topbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+
+    .topbar{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+    .controls-row{display:flex;gap:10px;flex-wrap:wrap}
+
     .btn{background:#0b63ff;color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
     .btn.secondary{background:#eef2ff;color:#0b1220}
     .btn.ghost{background:transparent;border:1px solid #cbd5ff;color:#0b1220}
-    .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
     input[type=file]{display:none}
     #gallery{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
     .thumb{width:160px;height:120px;overflow:hidden;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(3,10,30,0.06);cursor:pointer}
@@ -20,35 +23,41 @@
 
     #overlay{position:fixed;inset:0;display:none;background:rgba(6,10,20,0.95);align-items:center;justify-content:center;z-index:999;padding:0;touch-action:none}
     #overlay.open{display:flex}
-    #slideBox{position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:100%;}
+    #slideBox{position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:100%}
     #slideImg{max-width:98%;max-height:98%;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,0.6)}
-    #overlayCaption{position:absolute;top:10px;width:100%;text-align:center;color:#fff;font-size:16px;font-weight:500;text-shadow:0 0 6px rgba(0,0,0,0.7);pointer-events:none}
-    #overlayControls{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:rgba(0,0,0,0.3);padding:6px 10px;border-radius:8px}
-    #overlayControls button,input{padding:8px 10px;border-radius:6px;border:0}
-    #overlayControls button{cursor:pointer}
-    input[type=number]{width:80px}
+
+    #overlayCaption{position:absolute;top:50px;width:100%;text-align:center;color:#fff;font-size:16px;font-weight:500;text-shadow:0 0 6px rgba(0,0,0,0.7);pointer-events:none}
+
+    #bottomControls{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;background:rgba(0,0,0,0.3);padding:6px 10px;border-radius:8px}
+    #durationControl{position:absolute;bottom:70px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.3);padding:6px 10px;border-radius:8px;color:#fff;display:flex;align-items:center;gap:6px}
+
+    #fullscreenBtn{position:absolute;top:10px;right:10px;z-index:10}
+    #closeOverlay{position:absolute;top:10px;left:10px;z-index:10}
 
     .meta{font-size:13px;color:#445;margin-top:6px}
     @media (max-width:600px){ .thumb{width:120px;height:90px} }
-    #wakeLockNotice{color:#c00;margin-top:6px;font-size:13px;}
-    #folderPanel{margin-top:10px;margin-bottom:10px;display:none;}
+    #wakeLockNotice{color:#c00;margin-top:6px;font-size:13px}
+
+    #folderPanel{margin-top:10px;margin-bottom:10px;display:none}
     #folderToggle{cursor:pointer;color:#0b63ff;margin-bottom:4px;user-select:none}
     #folderFilters{display:flex;gap:10px;flex-wrap:wrap}
     #folderFilters label{background:#eef2ff;padding:4px 8px;border-radius:6px;cursor:pointer;user-select:none}
-    #selectAllBtn{cursor:pointer;color:#0b63ff;margin-bottom:4px;user-select:none;display:none;}
+    #selectAllBtn{cursor:pointer;color:#0b63ff;margin-bottom:4px;user-select:none;display:none}
   </style>
 </head>
 <body>
   <h1>Offline Random Image Slideshow (folders + files)</h1>
 
   <div class="topbar">
-    <div class="controls">
+    <div class="controls-row">
       <label class="btn ghost" id="chooseBtn">Choose files / folders</label>
-      <input id="fileInput" type="file" multiple webkitdirectory />
-      <button class="btn secondary" id="shuffleBtn">Shuffle</button>
-      <button class="btn" id="randomBtn">Random</button>
+      <input id="fileInput" type="file" multiple webkitdirectory directory />
       <button class="btn ghost" id="clearBtn">Clear</button>
+    </div>
+    <div class="controls-row">
       <label for="startBtn" class="btn" id="startBtn">Start Slideshow</label>
+      <button class="btn" id="randomBtn">Random</button>
+      <button class="btn secondary" id="shuffleBtn">Shuffle</button>
     </div>
   </div>
 
@@ -66,13 +75,17 @@
     <div id="slideBox">
       <img id="slideImg" src="" alt="slide image" />
       <div id="overlayCaption"></div>
-      <div id="overlayControls">
+
+      <button id="fullscreenBtn" class="btn secondary">Fullscreen</button>
+      <button id="closeOverlay" class="btn ghost">Close</button>
+
+      <div id="bottomControls">
         <button id="prevBtn" class="btn secondary">⟨ Prev</button>
         <button id="playPauseBtn" class="btn">▶ Play</button>
         <button id="nextBtn" class="btn secondary">Next ⟩</button>
-        <label style="color:#fff">Duration (s): <input id="durationInput" type="number" min="1" value="2" /></label>
-        <button id="fullscreenBtn" class="btn secondary">Fullscreen</button>
-        <button id="closeOverlay" class="btn ghost">Close</button>
+      </div>
+      <div id="durationControl">
+        <label>Duration (s): <input id="durationInput" type="number" min="1" value="2" /></label>
       </div>
     </div>
   </div>
@@ -147,7 +160,8 @@
       folders.forEach(folder=>{
         const id='folder_'+folder.replace(/[^a-z0-9]/gi,'_');
         const label=document.createElement('label');
-        label.innerHTML=`<input type="checkbox" id="${id}" checked> ${folder} (${images.filter(img=>img.folder===folder).length})`;
+        label.dataset.folder=folder;
+        label.innerHTML=`<input type="checkbox" checked> ${folder} (${images.filter(img=>img.folder===folder).length})`;
         folderFilters.appendChild(label);
         label.querySelector('input').addEventListener('change',applyFolderFilter);
       });
@@ -157,7 +171,7 @@
     }
 
     function applyFolderFilter(){
-      const activeFolders=[...folderFilters.querySelectorAll('input:checked')].map(i=>i.parentNode.textContent.split(' (')[0]);
+      const activeFolders=[...folderFilters.querySelectorAll('input:checked')].map(i=>i.parentNode.dataset.folder);
       filteredImages=images.filter(img=>activeFolders.includes(img.folder));
       renderGallery();
     }

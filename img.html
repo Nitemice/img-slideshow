@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Random Image Shuffler — Local images, no upload</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;}
+    body{margin:0;padding:20px;background:#f6f7fb;color:#0b1220}
+    h1{font-size:20px;margin:0 0 12px}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+    .dropzone{flex:1;min-width:220px;border:2px dashed #c7cbe0;border-radius:10px;padding:12px;display:flex;align-items:center;justify-content:center;gap:10px;background:#fff}
+    .btn{background:#0b63ff;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer}
+    .btn.secondary{background:#e6e9f7;color:#0b1220}
+    .btn.danger{background:#ff5b5b}
+    input[type=file]{display:none}
+    .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+    .thumb{background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e3e6f0;display:flex;align-items:center;justify-content:center;height:120px}
+    .thumb img{max-width:100%;max-height:100%;display:block}
+    .meta{font-size:12px;color:#556}
+    .toolbar{display:flex;gap:8px;align-items:center}
+    .fullview{position:fixed;inset:0;background:rgba(11,17,32,0.85);display:none;align-items:center;justify-content:center;padding:20px}
+    .fullview.open{display:flex}
+    .fullview img{max-width:95%;max-height:90%;border-radius:8px;box-shadow:0 6px 24px rgba(2,6,23,0.6)}
+    .caption{color:#fff;margin-top:8px;font-size:13px;text-align:center}
+  </style>
+</head>
+<body>
+  <h1>Random Image Shuffler — load local images (no upload)</h1>
+  <div class="controls">
+    <label class="dropzone" id="dropzone" tabindex="0">
+      <span>Drag & drop images here — or</span>
+      <button class="btn secondary" id="chooseBtn" type="button">Choose files</button>
+      <input id="fileInput" type="file" accept="image/*" multiple />
+    </label>
+    <div class="toolbar">
+      <button class="btn" id="shuffleBtn">Shuffle & Show</button>
+      <button class="btn" id="randomOneBtn">Show Random One</button>
+      <button class="btn secondary" id="clearBtn">Clear</button>
+    </div>
+  </div>
+
+  <div class="meta" id="info">No images loaded.</div>
+  <div class="gallery" id="gallery" aria-live="polite"></div>
+
+  <div class="fullview" id="fullview" role="dialog" aria-modal="true">
+    <div>
+      <img id="fullImg" alt="Full view" />
+      <div class="caption" id="caption"></div>
+    </div>
+  </div>
+
+  <script>
+    // Simple local-image shuffler. Uses object URLs (no upload) and Fisher-Yates shuffle.
+    const fileInput = document.getElementById('fileInput');
+    const chooseBtn = document.getElementById('chooseBtn');
+    const dropzone = document.getElementById('dropzone');
+    const gallery = document.getElementById('gallery');
+    const info = document.getElementById('info');
+    const shuffleBtn = document.getElementById('shuffleBtn');
+    const randomOneBtn = document.getElementById('randomOneBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const fullview = document.getElementById('fullview');
+    const fullImg = document.getElementById('fullImg');
+    const caption = document.getElementById('caption');
+
+    let images = []; // {name,size,url,file}
+
+    chooseBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+    // Drag & drop
+    ['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.style.borderColor = '#7a82ff'; }));
+    ['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.style.borderColor = ''; }));
+    dropzone.addEventListener('drop', e => {
+      const dt = e.dataTransfer;
+      if (dt && dt.files) handleFiles(dt.files);
+    });
+
+    // Keyboard: press Enter or Space on dropzone to open file chooser
+    dropzone.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+    });
+
+    function handleFiles(fileList) {
+      const arr = Array.from(fileList).filter(f => f.type && f.type.startsWith('image/'));
+      if (!arr.length) return;
+      const created = arr.map(f => ({ name: f.name, size: f.size, url: URL.createObjectURL(f), file: f }));
+      images.push(...created);
+      updateInfo();
+      renderGallery(images);
+    }
+
+    function updateInfo(){
+      info.textContent = `${images.length} image${images.length !== 1 ? 's' : ''} loaded.`;
+    }
+
+    function renderGallery(list){
+      gallery.innerHTML = '';
+      list.forEach((img, i) => {
+        const div = document.createElement('div');
+        div.className = 'thumb';
+        div.title = img.name;
+        const image = document.createElement('img');
+        image.src = img.url;
+        image.alt = img.name;
+        image.loading = 'lazy';
+        div.appendChild(image);
+        div.addEventListener('click', () => openFull(i, list));
+        gallery.appendChild(div);
+      });
+    }
+
+    // Fisher-Yates shuffle
+    function shuffleArray(a){
+      const arr = a.slice();
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    shuffleBtn.addEventListener('click', () => {
+      if (!images.length) return alert('Load some images first');
+      const shuffled = shuffleArray(images);
+      renderGallery(shuffled);
+      caption.textContent = '';
+    });
+
+    randomOneBtn.addEventListener('click', () => {
+      if (!images.length) return alert('Load some images first');
+      const idx = Math.floor(Math.random() * images.length);
+      openFull(idx, images);
+    });
+
+    clearBtn.addEventListener('click', () => {
+      // Revoke object URLs
+      images.forEach(i => URL.revokeObjectURL(i.url));
+      images = [];
+      gallery.innerHTML = '';
+      updateInfo();
+      caption.textContent = '';
+    });
+
+    function openFull(index, list){
+      const item = list[index];
+      fullImg.src = item.url;
+      fullImg.alt = item.name;
+      caption.textContent = `${item.name} — ${(item.size/1024).toFixed(1)} KB`;
+      fullview.classList.add('open');
+    }
+
+    // Close fullview on click outside or Escape
+    fullview.addEventListener('click', (e) => {
+      if (e.target === fullview) closeFull();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeFull();
+    });
+    function closeFull(){
+      fullview.classList.remove('open');
+      fullImg.src = '';
+    }
+
+    // Helpful: if user drops the same file twice we still show it. If you want dedupe, add logic.
+
+    // Optional: allow paste-from-clipboard images
+    window.addEventListener('paste', e => {
+      const items = Array.from(e.clipboardData.items || []).filter(it => it.type && it.type.startsWith('image/'));
+      if (!items.length) return;
+      const files = items.map(it => it.getAsFile()).filter(Boolean);
+      if (files.length) handleFiles(files);
+    });
+
+    // Accessibility: focus indicators preserved by browser defaults; buttons are reachable by keyboard.
+  </script>
+</body>
+</html>

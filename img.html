@@ -60,6 +60,7 @@
         <button id="playPauseBtn" class="btn">▶ Play</button>
         <button id="nextBtn" class="btn secondary">Next ⟩</button>
         <label style="color:#fff">Duration (s): <input id="durationInput" type="number" min="1" value="2" /></label>
+        <button id="fullscreenBtn" class="btn secondary">Fullscreen</button>
         <button id="closeOverlay" class="btn ghost">Close</button>
       </div>
     </div>
@@ -83,136 +84,75 @@
     const nextBtn = document.getElementById('nextBtn');
     const durationInput = document.getElementById('durationInput');
     const closeOverlay = document.getElementById('closeOverlay');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
 
-    let images = [];
-    let currentIndex = 0;
-    let intervalMs = parseInt(durationInput.value,10) * 1000;
-    let slideshowTimer = null;
-    let wakeLock = null;
-    let touchStartX = 0;
+    let images = [], currentIndex = 0, intervalMs = parseInt(durationInput.value,10)*1000, slideshowTimer=null, touchStartX=0;
 
-    chooseBtn.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', e => handleFiles(e.target.files));
+    chooseBtn.addEventListener('click',()=>fileInput.click());
+    fileInput.addEventListener('change',e=>handleFiles(e.target.files));
 
     function handleFiles(fileList){
-      const arr = Array.from(fileList).filter(f => f.type && f.type.startsWith('image/'));
-      if (!arr.length) return;
-      const added = arr.map(f => ({ name: f.webkitRelativePath || f.name, url: URL.createObjectURL(f) }));
-      images.push(...added);
-      updateInfo();
-      renderGallery();
+      const arr = Array.from(fileList).filter(f=>f.type && f.type.startsWith('image/'));
+      if(!arr.length) return;
+      images.push(...arr.map(f=>({name:f.webkitRelativePath||f.name,url:URL.createObjectURL(f)})));
+      updateInfo(); renderGallery();
     }
-
-    function updateInfo(){ info.textContent = `${images.length} image${images.length !== 1 ? 's' : ''} loaded.`; }
-
+    function updateInfo(){ info.textContent=`${images.length} image${images.length!==1?'s':''} loaded.`; }
     function renderGallery(){
-      gallery.innerHTML = '';
-      images.forEach((it, i) => {
-        const d = document.createElement('div');
-        d.className = 'thumb';
-        const img = document.createElement('img');
-        img.src = it.url;
-        img.alt = it.name;
-        d.appendChild(img);
-        d.addEventListener('click', () => openOverlay(i));
+      gallery.innerHTML='';
+      images.forEach((it,i)=>{
+        const d=document.createElement('div'); d.className='thumb';
+        const img=document.createElement('img'); img.src=it.url; img.alt=it.name;
+        d.appendChild(img); d.addEventListener('click',()=>openOverlay(i));
         gallery.appendChild(d);
       });
     }
 
-    function openOverlay(index){
-      if (!images.length) return;
-      currentIndex = ((index % images.length)+images.length)%images.length;
-      const item = images[currentIndex];
-      slideImg.src = item.url;
-      overlayCaption.textContent = item.name;
+    function openOverlay(index){ currentIndex=((index%images.length)+images.length)%images.length;
+      const it=images[currentIndex]; slideImg.src=it.url; overlayCaption.textContent=it.name;
       overlay.classList.add('open');
     }
-
-    function close(){ overlay.classList.remove('open'); stopSlideshow(); releaseWakeLock(); }
-
-    function showAt(i){
-      if (!images.length) return;
-      currentIndex = ((i % images.length)+images.length)%images.length;
-      const it = images[currentIndex];
-      slideImg.src = it.url;
-      overlayCaption.textContent = it.name;
+    function close(){ overlay.classList.remove('open'); stopSlideshow(); }
+    function showAt(i){ currentIndex=((i%images.length)+images.length)%images.length;
+      const it=images[currentIndex]; slideImg.src=it.url; overlayCaption.textContent=it.name;
     }
-
     function next(){ showAt(currentIndex+1); }
     function prev(){ showAt(currentIndex-1); }
 
-    async function requestWakeLock(){
-      if ('wakeLock' in navigator) {
-        try {
-          wakeLock = await navigator.wakeLock.request('screen');
-          wakeLock.addEventListener('release', () => console.log('WakeLock released'));
-        } catch (err) {
-          console.warn('WakeLock failed:', err);
-        }
-      }
+    function startSlideshow(){ if(!images.length) return alert('Please select images or folders first'); overlay.classList.add('open');
+      intervalMs=Math.max(1,parseFloat(durationInput.value)||2)*1000; showAt(currentIndex); stopSlideshow();
+      slideshowTimer=setInterval(()=>{next();},intervalMs); playPauseBtn.textContent='⏸ Pause';
     }
+    function stopSlideshow(){ if(slideshowTimer){clearInterval(slideshowTimer); slideshowTimer=null;} playPauseBtn.textContent='▶ Play'; }
+    function togglePlayPause(){ if(slideshowTimer) stopSlideshow(); else startSlideshow(); }
 
-    function releaseWakeLock(){
-      if (wakeLock) {
-        wakeLock.release();
-        wakeLock = null;
-      }
-    }
+    shuffleBtn.addEventListener('click',()=>{ if(!images.length) return alert('No images to shuffle'); images=shuffleArray(images); renderGallery(); });
+    randomBtn.addEventListener('click',()=>{ if(!images.length) return alert('No images loaded'); openOverlay(Math.floor(Math.random()*images.length)); });
+    clearBtn.addEventListener('click',()=>{ images.forEach(i=>{try{URL.revokeObjectURL(i.url);}catch(e){} }); images=[]; gallery.innerHTML=''; updateInfo(); stopSlideshow(); overlay.classList.remove('open'); });
 
-    function startSlideshow(){
-      if (!images.length) return alert('Please select images or folders first');
-      overlay.classList.add('open');
-      intervalMs = Math.max(1, parseFloat(durationInput.value) || 2) * 1000;
-      showAt(currentIndex);
-      stopSlideshow();
-      slideshowTimer = setInterval(() => { next(); }, intervalMs);
-      playPauseBtn.textContent = '⏸ Pause';
-      requestWakeLock();
-    }
+    startBtn.addEventListener('click',()=>startSlideshow());
+    playPauseBtn.addEventListener('click',togglePlayPause);
+    nextBtn.addEventListener('click',()=>{ stopSlideshow(); next(); });
+    prevBtn.addEventListener('click',()=>{ stopSlideshow(); prev(); });
+    closeOverlay.addEventListener('click',close);
 
-    function stopSlideshow(){
-      if (slideshowTimer){ clearInterval(slideshowTimer); slideshowTimer = null; }
-      playPauseBtn.textContent = '▶ Play';
-      releaseWakeLock();
-    }
-
-    function togglePlayPause(){ if (slideshowTimer) stopSlideshow(); else startSlideshow(); }
-
-    shuffleBtn.addEventListener('click', () => { if (!images.length) return alert('No images to shuffle'); images = shuffleArray(images); renderGallery(); });
-    randomBtn.addEventListener('click', () => { if (!images.length) return alert('No images loaded'); const idx = Math.floor(Math.random()*images.length); openOverlay(idx); });
-    clearBtn.addEventListener('click', () => { images.forEach(i => { try{ URL.revokeObjectURL(i.url); }catch(e){} }); images = []; gallery.innerHTML = ''; updateInfo(); stopSlideshow(); overlay.classList.remove('open'); });
-
-    startBtn.addEventListener('click', () => startSlideshow());
-    playPauseBtn.addEventListener('click', togglePlayPause);
-    nextBtn.addEventListener('click', () => { stopSlideshow(); next(); });
-    prevBtn.addEventListener('click', () => { stopSlideshow(); prev(); });
-    closeOverlay.addEventListener('click', close);
-
-    durationInput.addEventListener('change', () => {
-      intervalMs = Math.max(1, parseFloat(durationInput.value) || 2) * 1000;
-      if (slideshowTimer){ startSlideshow(); }
+    fullscreenBtn.addEventListener('click',()=>{
+      if(!document.fullscreenElement){ overlay.requestFullscreen().catch(err=>console.warn(err)); }
+      else{ document.exitFullscreen(); }
     });
 
-    document.addEventListener('keydown', (e) => {
-      if (!overlay.classList.contains('open')) return;
-      if (e.key === 'Escape') close();
-      if (e.key === 'ArrowRight') { stopSlideshow(); next(); }
-      if (e.key === 'ArrowLeft') { stopSlideshow(); prev(); }
-      if (e.key === ' ') { e.preventDefault(); togglePlayPause(); }
+    durationInput.addEventListener('change',()=>{ intervalMs=Math.max(1,parseFloat(durationInput.value)||2)*1000; if(slideshowTimer){ startSlideshow(); } });
+
+    document.addEventListener('keydown',(e)=>{ if(!overlay.classList.contains('open')) return;
+      if(e.key==='Escape') close(); if(e.key==='ArrowRight'){stopSlideshow(); next();}
+      if(e.key==='ArrowLeft'){stopSlideshow(); prev();} if(e.key===' '){e.preventDefault(); togglePlayPause();}
     });
 
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    overlay.addEventListener('click',(e)=>{ if(e.target===overlay) close(); });
+    overlay.addEventListener('touchstart',e=>{ touchStartX=e.changedTouches[0].screenX;},{passive:true});
+    overlay.addEventListener('touchend',e=>{ const diff=e.changedTouches[0].screenX-touchStartX; if(Math.abs(diff)>50){ stopSlideshow(); if(diff<0) next(); else prev();}},{passive:true});
 
-    overlay.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, {passive:true});
-    overlay.addEventListener('touchend', e => {
-      const diff = e.changedTouches[0].screenX - touchStartX;
-      if (Math.abs(diff) > 50) {
-        stopSlideshow();
-        if (diff < 0) next(); else prev();
-      }
-    }, {passive:true});
-
-    function shuffleArray(arr){ const a = arr.slice(); for (let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+    function shuffleArray(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
     updateInfo();
   </script>
 </body>

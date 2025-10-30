@@ -1,226 +1,180 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Random Image Slideshow Viewer</title>
-  <style>
-    :root {font-family: system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial;}
-    body {margin: 0; padding: 20px; background: #f6f7fb; color: #0b1220;}
-    h1 {font-size: 20px; margin: 0 0 12px;}
-    .controls, .slideshow-controls {display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;}
-    .btn {background: #0b63ff; color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer;}
-    .btn.secondary {background: #e6e9f7; color: #0b1220;}
-    .btn.danger {background: #ff5b5b;}
-    .hidden {display: none;}
-    .gallery {display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px;}
-    .thumb {background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid #e3e6f0; display: flex; align-items: center; justify-content: center; height: 120px;}
-    .thumb img {max-width: 100%; max-height: 100%; display: block;}
-    .meta {font-size: 12px; color: #556;}
-    .fullview {position: fixed; inset: 0; background: rgba(11,17,32,0.85); display: none; align-items: center; justify-content: center; padding: 20px; flex-direction: column;}
-    .fullview.open {display: flex;}
-    .fullview img {max-width: 95%; max-height: 90%; border-radius: 8px; box-shadow: 0 6px 24px rgba(2,6,23,0.6);}
-    .caption {color: #fff; margin-top: 8px; font-size: 13px; text-align: center;}
-    fieldset {border: 1px solid #c7cbe0; border-radius: 8px; padding: 10px; margin-bottom: 15px;}
-    legend {font-size: 14px; font-weight: bold; color: #333;}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline Random Image Slideshow</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+        #controls, #slideshowControls {
+            margin: 10px auto;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        #slideshowControls button, #controls button, input[type=number] {
+            padding: 8px 12px;
+            font-size: 14px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            background: #fff;
+            cursor: pointer;
+        }
+        #slideshowControls button:hover, #controls button:hover {
+            background: #e6e6e6;
+        }
+        #gallery {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        #gallery img {
+            max-width: 200px;
+            max-height: 200px;
+            object-fit: cover;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        #slideshowContainer {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 1000;
+        }
+        #slideshowImage {
+            max-width: 90%;
+            max-height: 80%;
+            border-radius: 10px;
+        }
+    </style>
 </head>
 <body>
-  <h1>Random Image Slideshow Viewer — Local Folders or Manual Upload</h1>
+    <h1>Offline Random Image Slideshow</h1>
 
-  <fieldset>
-    <legend>Folder Selection</legend>
-    <p>Select one or more folders (A, B, C) to load images from.</p>
-    <input type="file" id="folderInput" webkitdirectory multiple />
-    <button class="btn" id="loadFoldersBtn">Load Selected Folders</button>
-  </fieldset>
-
-  <fieldset>
-    <legend>Manual Upload (optional)</legend>
-    <button class="btn secondary" id="toggleUploadBtn">Show Manual Upload</button>
-    <div id="uploadSection" class="hidden">
-      <input id="fileInput" type="file" accept="image/*" multiple />
-      <button class="btn" id="uploadBtn">Choose Files</button>
+    <div id="controls">
+        <label>Select Images or Folders:</label>
+        <input type="file" id="fileInput" multiple webkitdirectory>
+        <button id="startSlideshow">Start Slideshow</button>
     </div>
-  </fieldset>
 
-  <div class="controls">
-    <button class="btn" id="shuffleBtn">Shuffle</button>
-    <button class="btn" id="randomOneBtn">Random</button>
-    <button class="btn secondary" id="clearBtn">Clear</button>
-  </div>
-
-  <div class="meta" id="info">No images loaded.</div>
-  <div class="gallery" id="gallery" aria-live="polite"></div>
-
-  <fieldset>
-    <legend>Slideshow Controls</legend>
-    <div class="slideshow-controls">
-      <button class="btn" id="prevBtn">⟨ Prev</button>
-      <button class="btn" id="playPauseBtn">▶ Play</button>
-      <button class="btn" id="nextBtn">Next ⟩</button>
-      <label>Duration (sec): <input type="number" id="durationInput" min="1" value="2" style="width:60px" /></label>
+    <div id="slideshowControls" style="display:none;">
+        <button id="prevBtn">Previous</button>
+        <button id="pauseBtn">Pause</button>
+        <button id="nextBtn">Next</button>
+        <label>Time (s): <input type="number" id="intervalInput" value="3" min="1" style="width:60px;"></label>
     </div>
-  </fieldset>
 
-  <div class="fullview" id="fullview" role="dialog" aria-modal="true">
-    <img id="fullImg" alt="Full view" />
-    <div class="caption" id="caption"></div>
-  </div>
+    <div id="gallery"></div>
 
-  <script>
-    const folderInput = document.getElementById('folderInput');
-    const loadFoldersBtn = document.getElementById('loadFoldersBtn');
-    const toggleUploadBtn = document.getElementById('toggleUploadBtn');
-    const uploadSection = document.getElementById('uploadSection');
-    const fileInput = document.getElementById('fileInput');
-    const uploadBtn = document.getElementById('uploadBtn');
+    <div id="slideshowContainer">
+        <img id="slideshowImage" src="">
+    </div>
 
-    const gallery = document.getElementById('gallery');
-    const info = document.getElementById('info');
-    const shuffleBtn = document.getElementById('shuffleBtn');
-    const randomOneBtn = document.getElementById('randomOneBtn');
-    const clearBtn = document.getElementById('clearBtn');
+    <script>
+        let images = [];
+        let currentIndex = 0;
+        let interval = 3000;
+        let slideshowInterval = null;
+        const fileInput = document.getElementById('fileInput');
+        const gallery = document.getElementById('gallery');
+        const slideshowContainer = document.getElementById('slideshowContainer');
+        const slideshowImage = document.getElementById('slideshowImage');
+        const startSlideshowBtn = document.getElementById('startSlideshow');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const intervalInput = document.getElementById('intervalInput');
+        const slideshowControls = document.getElementById('slideshowControls');
 
-    const fullview = document.getElementById('fullview');
-    const fullImg = document.getElementById('fullImg');
-    const caption = document.getElementById('caption');
+        fileInput.addEventListener('change', handleFiles);
+        startSlideshowBtn.addEventListener('click', startSlideshow);
+        pauseBtn.addEventListener('click', togglePause);
+        prevBtn.addEventListener('click', showPrev);
+        nextBtn.addEventListener('click', showNext);
+        intervalInput.addEventListener('change', () => {
+            interval = parseInt(intervalInput.value) * 1000;
+        });
 
-    const playPauseBtn = document.getElementById('playPauseBtn');
-    const nextBtn = document.getElementById('nextBtn');
-    const prevBtn = document.getElementById('prevBtn');
-    const durationInput = document.getElementById('durationInput');
+        function handleFiles(event) {
+            const files = Array.from(event.target.files).filter(f => f.type.startsWith('image/'));
+            images = files.map(f => URL.createObjectURL(f));
+            shuffle(images);
+            renderGallery();
+        }
 
-    let images = [];
-    let currentIndex = 0;
-    let slideshowInterval = null;
+        function renderGallery() {
+            gallery.innerHTML = '';
+            images.forEach(src => {
+                const img = document.createElement('img');
+                img.src = src;
+                img.addEventListener('click', () => openSlideshow(images.indexOf(src)));
+                gallery.appendChild(img);
+            });
+        }
 
-    // Folder loading using webkitdirectory (works offline)
-    loadFoldersBtn.addEventListener('click', () => {
-      const files = folderInput.files;
-      if (!files.length) return alert('Please select one or more folders first.');
-      handleFiles(files);
-    });
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
 
-    // Manual upload toggle
-    toggleUploadBtn.addEventListener('click', () => {
-      uploadSection.classList.toggle('hidden');
-      toggleUploadBtn.textContent = uploadSection.classList.contains('hidden') ? 'Show Manual Upload' : 'Hide Manual Upload';
-    });
+        function startSlideshow() {
+            if (images.length === 0) return alert('Please select some images first.');
+            currentIndex = 0;
+            slideshowContainer.style.display = 'flex';
+            slideshowControls.style.display = 'flex';
+            showImage();
+            slideshowInterval = setInterval(showNext, interval);
+        }
 
-    uploadBtn.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', e => handleFiles(e.target.files));
+        function togglePause() {
+            if (slideshowInterval) {
+                clearInterval(slideshowInterval);
+                slideshowInterval = null;
+                pauseBtn.textContent = 'Play';
+            } else {
+                slideshowInterval = setInterval(showNext, interval);
+                pauseBtn.textContent = 'Pause';
+            }
+        }
 
-    function handleFiles(fileList) {
-      const arr = Array.from(fileList).filter(f => f.type.startsWith('image/'));
-      const newImages = arr.map(f => ({ name: f.webkitRelativePath || f.name, url: URL.createObjectURL(f) }));
-      images.push(...newImages);
-      updateInfo();
-      renderGallery(images);
-    }
+        function showImage() {
+            slideshowImage.src = images[currentIndex];
+        }
 
-    function updateInfo() {
-      info.textContent = `${images.length} image${images.length !== 1 ? 's' : ''} loaded.`;
-    }
+        function showNext() {
+            currentIndex = (currentIndex + 1) % images.length;
+            showImage();
+        }
 
-    function renderGallery(list) {
-      gallery.innerHTML = '';
-      list.forEach((img, i) => {
-        const div = document.createElement('div');
-        div.className = 'thumb';
-        div.title = img.name;
-        const image = document.createElement('img');
-        image.src = img.url;
-        image.alt = img.name;
-        div.appendChild(image);
-        div.addEventListener('click', () => openFull(i));
-        gallery.appendChild(div);
-      });
-    }
+        function showPrev() {
+            currentIndex = (currentIndex - 1 + images.length) % images.length;
+            showImage();
+        }
 
-    function openFull(index) {
-      if (!images.length) return;
-      currentIndex = (index + images.length) % images.length;
-      const item = images[currentIndex];
-      fullImg.src = item.url;
-      fullImg.alt = item.name;
-      caption.textContent = item.name;
-      fullview.classList.add('open');
-    }
-
-    function closeFull() {
-      fullview.classList.remove('open');
-      stopSlideshow();
-    }
-
-    fullview.addEventListener('click', e => { if (e.target === fullview) closeFull(); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeFull(); });
-
-    function shuffleArray(a) {
-      const arr = a.slice();
-      for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-      }
-      return arr;
-    }
-
-    shuffleBtn.addEventListener('click', () => {
-      if (!images.length) return alert('Load some images first');
-      images = shuffleArray(images);
-      renderGallery(images);
-    });
-
-    randomOneBtn.addEventListener('click', () => {
-      if (!images.length) return alert('Load some images first');
-      openFull(Math.floor(Math.random() * images.length));
-    });
-
-    clearBtn.addEventListener('click', () => {
-      images.forEach(i => URL.revokeObjectURL(i.url));
-      images = [];
-      gallery.innerHTML = '';
-      updateInfo();
-    });
-
-    // Slideshow controls
-    function startSlideshow() {
-      if (!images.length) return alert('Load some images first');
-      const duration = Math.max(1, parseFloat(durationInput.value) || 2) * 1000;
-      playPauseBtn.textContent = '⏸ Pause';
-      slideshowInterval = setInterval(() => nextImage(), duration);
-      openFull(currentIndex);
-    }
-
-    function stopSlideshow() {
-      clearInterval(slideshowInterval);
-      slideshowInterval = null;
-      playPauseBtn.textContent = '▶ Play';
-    }
-
-    function nextImage() {
-      currentIndex = (currentIndex + 1) % images.length;
-      openFull(currentIndex);
-    }
-
-    function prevImage() {
-      currentIndex = (currentIndex - 1 + images.length) % images.length;
-      openFull(currentIndex);
-    }
-
-    playPauseBtn.addEventListener('click', () => {
-      if (slideshowInterval) stopSlideshow(); else startSlideshow();
-    });
-
-    nextBtn.addEventListener('click', () => {
-      stopSlideshow();
-      nextImage();
-    });
-
-    prevBtn.addEventListener('click', () => {
-      stopSlideshow();
-      prevImage();
-    });
-  </script>
+        slideshowContainer.addEventListener('click', () => {
+            slideshowContainer.style.display = 'none';
+            slideshowControls.style.display = 'none';
+            clearInterval(slideshowInterval);
+        });
+    </script>
 </body>
 </html>

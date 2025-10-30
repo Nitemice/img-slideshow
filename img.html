@@ -18,20 +18,17 @@
     .thumb{width:160px;height:120px;overflow:hidden;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(3,10,30,0.06);cursor:pointer}
     .thumb img{max-width:100%;max-height:100%;object-fit:cover}
 
-    /* Fullscreen slideshow overlay */
-    #overlay{position:fixed;inset:0;display:none;background:rgba(6,10,20,0.9);align-items:center;justify-content:center;z-index:999;padding:20px}
+    #overlay{position:fixed;inset:0;display:none;background:rgba(6,10,20,0.9);align-items:center;justify-content:center;z-index:999;padding:20px;touch-action:none}
     #overlay.open{display:flex}
     #slideBox{max-width:95%;max-height:85%;display:flex;flex-direction:column;align-items:center}
     #slideImg{max-width:100%;max-height:100%;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,0.6)}
-    #overlayCaption{color:#fff;margin-top:10px}
-    /* controls inside overlay */
-    #overlayControls{margin-top:14px;display:flex;gap:8px;align-items:center}
+    #overlayCaption{color:#fff;margin-top:10px;text-align:center}
+    #overlayControls{margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
     #overlayControls button,input{padding:8px 10px;border-radius:6px;border:0}
     #overlayControls button{cursor:pointer}
     input[type=number]{width:80px}
 
     .meta{font-size:13px;color:#445;margin-top:6px}
-
     @media (max-width:600px){ .thumb{width:120px;height:90px} }
   </style>
 </head>
@@ -54,7 +51,6 @@
   <div class="meta" id="info">No images loaded.</div>
   <div id="gallery" aria-live="polite"></div>
 
-  <!-- Fullscreen overlay with controls (visible during slideshow) -->
   <div id="overlay" role="dialog" aria-modal="true">
     <div id="slideBox">
       <img id="slideImg" src="" alt="slide image" />
@@ -70,7 +66,6 @@
   </div>
 
   <script>
-    // Single input handles both files and folders (webkitdirectory). Works with file:// if user chooses folders.
     const chooseBtn = document.getElementById('chooseBtn');
     const fileInput = document.getElementById('fileInput');
     const gallery = document.getElementById('gallery');
@@ -89,12 +84,13 @@
     const durationInput = document.getElementById('durationInput');
     const closeOverlay = document.getElementById('closeOverlay');
 
-    let images = []; // {name,url}
+    let images = [];
     let currentIndex = 0;
     let intervalMs = parseInt(durationInput.value,10) * 1000;
     let slideshowTimer = null;
+    let wakeLock = null;
+    let touchStartX = 0;
 
-    // wire up choose label to hidden file input
     chooseBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', e => handleFiles(e.target.files));
 
@@ -107,9 +103,7 @@
       renderGallery();
     }
 
-    function updateInfo(){
-      info.textContent = `${images.length} image${images.length !== 1 ? 's' : ''} loaded.`;
-    }
+    function updateInfo(){ info.textContent = `${images.length} image${images.length !== 1 ? 's' : ''} loaded.`; }
 
     function renderGallery(){
       gallery.innerHTML = '';
@@ -134,12 +128,8 @@
       overlay.classList.add('open');
     }
 
-    function close(){
-      overlay.classList.remove('open');
-      stopSlideshow();
-    }
+    function close(){ overlay.classList.remove('open'); stopSlideshow(); releaseWakeLock(); }
 
-    // slideshow controls
     function showAt(i){
       if (!images.length) return;
       currentIndex = ((i % images.length)+images.length)%images.length;
@@ -151,48 +141,46 @@
     function next(){ showAt(currentIndex+1); }
     function prev(){ showAt(currentIndex-1); }
 
+    async function requestWakeLock(){
+      if ('wakeLock' in navigator) {
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+          wakeLock.addEventListener('release', () => console.log('WakeLock released'));
+        } catch (err) {
+          console.warn('WakeLock failed:', err);
+        }
+      }
+    }
+
+    function releaseWakeLock(){
+      if (wakeLock) {
+        wakeLock.release();
+        wakeLock = null;
+      }
+    }
+
     function startSlideshow(){
       if (!images.length) return alert('Please select images or folders first');
-      // ensure overlay open and controls visible
       overlay.classList.add('open');
-      // update interval
       intervalMs = Math.max(1, parseFloat(durationInput.value) || 2) * 1000;
-      // show current image immediately
       showAt(currentIndex);
-      // start timer
       stopSlideshow();
       slideshowTimer = setInterval(() => { next(); }, intervalMs);
       playPauseBtn.textContent = '⏸ Pause';
+      requestWakeLock();
     }
 
     function stopSlideshow(){
       if (slideshowTimer){ clearInterval(slideshowTimer); slideshowTimer = null; }
       playPauseBtn.textContent = '▶ Play';
+      releaseWakeLock();
     }
 
-    function togglePlayPause(){
-      if (slideshowTimer) stopSlideshow(); else startSlideshow();
-    }
+    function togglePlayPause(){ if (slideshowTimer) stopSlideshow(); else startSlideshow(); }
 
-    // UI wiring
-    shuffleBtn.addEventListener('click', () => {
-      if (!images.length) return alert('No images to shuffle');
-      images = shuffleArray(images);
-      renderGallery();
-    });
-    randomBtn.addEventListener('click', () => {
-      if (!images.length) return alert('No images loaded');
-      const idx = Math.floor(Math.random()*images.length);
-      openOverlay(idx);
-    });
-    clearBtn.addEventListener('click', () => {
-      images.forEach(i => { try{ URL.revokeObjectURL(i.url); }catch(e){} });
-      images = [];
-      gallery.innerHTML = '';
-      updateInfo();
-      stopSlideshow();
-      overlay.classList.remove('open');
-    });
+    shuffleBtn.addEventListener('click', () => { if (!images.length) return alert('No images to shuffle'); images = shuffleArray(images); renderGallery(); });
+    randomBtn.addEventListener('click', () => { if (!images.length) return alert('No images loaded'); const idx = Math.floor(Math.random()*images.length); openOverlay(idx); });
+    clearBtn.addEventListener('click', () => { images.forEach(i => { try{ URL.revokeObjectURL(i.url); }catch(e){} }); images = []; gallery.innerHTML = ''; updateInfo(); stopSlideshow(); overlay.classList.remove('open'); });
 
     startBtn.addEventListener('click', () => startSlideshow());
     playPauseBtn.addEventListener('click', togglePlayPause);
@@ -202,12 +190,9 @@
 
     durationInput.addEventListener('change', () => {
       intervalMs = Math.max(1, parseFloat(durationInput.value) || 2) * 1000;
-      if (slideshowTimer){ // restart with new duration
-        startSlideshow();
-      }
+      if (slideshowTimer){ startSlideshow(); }
     });
 
-    // keyboard support
     document.addEventListener('keydown', (e) => {
       if (!overlay.classList.contains('open')) return;
       if (e.key === 'Escape') close();
@@ -216,17 +201,18 @@
       if (e.key === ' ') { e.preventDefault(); togglePlayPause(); }
     });
 
-    // click outside image closes
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
-    // Fisher-Yates
-    function shuffleArray(arr){
-      const a = arr.slice();
-      for (let i = a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
-      return a;
-    }
+    overlay.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, {passive:true});
+    overlay.addEventListener('touchend', e => {
+      const diff = e.changedTouches[0].screenX - touchStartX;
+      if (Math.abs(diff) > 50) {
+        stopSlideshow();
+        if (diff < 0) next(); else prev();
+      }
+    }, {passive:true});
 
-    // keep UI state consistent
+    function shuffleArray(arr){ const a = arr.slice(); for (let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
     updateInfo();
   </script>
 </body>

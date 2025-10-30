@@ -31,8 +31,11 @@
     .meta{font-size:13px;color:#445;margin-top:6px}
     @media (max-width:600px){ .thumb{width:120px;height:90px} }
     #wakeLockNotice{color:#c00;margin-top:6px;font-size:13px;}
-    #folderFilters{margin-top:10px;margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;}
+    #folderPanel{margin-top:10px;margin-bottom:10px;}
+    #folderToggle{cursor:pointer;color:#0b63ff;margin-bottom:4px;user-select:none;}
+    #folderFilters{display:flex;gap:10px;flex-wrap:wrap;display:none;}
     #folderFilters label{background:#eef2ff;padding:4px 8px;border-radius:6px;cursor:pointer;user-select:none;}
+    #selectAllBtn{cursor:pointer;color:#0b63ff;margin-bottom:4px;user-select:none;}
   </style>
 </head>
 <body>
@@ -41,7 +44,7 @@
   <div class="topbar">
     <div class="controls">
       <label class="btn ghost" id="chooseBtn">Choose files / folders</label>
-      <input id="fileInput" type="file" multiple />
+      <input id="fileInput" type="file" multiple webkitdirectory />
       <button class="btn secondary" id="shuffleBtn">Shuffle</button>
       <button class="btn" id="randomBtn">Random</button>
       <button class="btn ghost" id="clearBtn">Clear</button>
@@ -51,7 +54,12 @@
     </div>
   </div>
 
-  <div id="folderFilters"></div>
+  <div id="folderPanel">
+    <div id="folderToggle">Show/Hide Folders</div>
+    <div id="selectAllBtn">Select All / Deselect All</div>
+    <div id="folderFilters"></div>
+  </div>
+
   <div class="meta" id="info">No images loaded.</div>
   <div id="wakeLockNotice"></div>
   <div id="gallery" aria-live="polite"></div>
@@ -82,6 +90,9 @@
     const clearBtn=document.getElementById('clearBtn');
     const startBtn=document.getElementById('startBtn');
     const folderFilters=document.getElementById('folderFilters');
+    const folderPanel=document.getElementById('folderPanel');
+    const folderToggle=document.getElementById('folderToggle');
+    const selectAllBtn=document.getElementById('selectAllBtn');
 
     const overlay=document.getElementById('overlay');
     const slideImg=document.getElementById('slideImg');
@@ -95,48 +106,73 @@
 
     let images=[],filteredImages=[],currentIndex=0,intervalMs=parseInt(durationInput.value,10)*1000,slideshowTimer=null,touchStartX=0;
     let wakeLock=null;
-    let folderMap={}; // folderName -> [images]
 
     chooseBtn.addEventListener('click',()=>fileInput.click());
     fileInput.addEventListener('change',e=>handleFiles(e.target.files));
 
     function handleFiles(fileList){
+      images=[];
+      filteredImages=[];
       const arr=Array.from(fileList).filter(f=>f.type&&f.type.startsWith('image/'));
       if(!arr.length) return;
+      const paths=arr.map(f=>f.webkitRelativePath||f.name);
+      const ancestor=deepestCommonAncestor(paths);
       arr.forEach(f=>{
-        const parts=(f.webkitRelativePath||f.name).split('/');
-        const folder=parts.length>1?parts[0]:'(root)';
+        const relPath=(f.webkitRelativePath||f.name).substring(ancestor.length).replace(/^\/+/, '');
+        const folder=relPath.includes('/')?relPath.split('/').slice(0,-1).join('/'):'(root)';
         const obj={name:f.name,folder:folder,url:URL.createObjectURL(f)};
         images.push(obj);
-        if(!folderMap[folder]) folderMap[folder]=[];
-        folderMap[folder].push(obj);
       });
       updateInfo();
       renderFolderFilters();
-      renderGallery();
+      applyFolderFilter();
+    }
+
+    function deepestCommonAncestor(paths){
+      if(!paths.length) return '';
+      const splitPaths=paths.map(p=>p.split('/'));
+      let i=0;
+      while(true){
+        const segment=splitPaths[0][i];
+        if(segment===undefined) break;
+        if(!splitPaths.every(sp=>sp[i]===segment)) break;
+        i++;
+      }
+      return splitPaths[0].slice(0,i).join('/');
     }
 
     function updateInfo(){ info.textContent=`${images.length} image${images.length!==1?'s':''} loaded.`; }
 
     function renderFolderFilters(){
       folderFilters.innerHTML='';
-      Object.entries(folderMap).forEach(([folder,arr])=>{
+      const folders=[...new Set(images.map(i=>i.folder))].sort();
+      folders.forEach(folder=>{
         const id='folder_'+folder.replace(/[^a-z0-9]/gi,'_');
         const label=document.createElement('label');
-        label.innerHTML=`<input type="checkbox" id="${id}" checked> ${folder} (${arr.length})`;
+        label.innerHTML=`<input type="checkbox" id="${id}" checked> ${folder} (${images.filter(img=>img.folder===folder).length})`;
         folderFilters.appendChild(label);
         label.querySelector('input').addEventListener('change',applyFolderFilter);
       });
+      folderPanel.style.display='block';
+      folderFilters.style.display='flex';
     }
 
     function applyFolderFilter(){
-      const activeFolders=Object.keys(folderMap).filter(folder=>{
-        const id='folder_'+folder.replace(/[^a-z0-9]/gi,'_');
-        return document.getElementById(id)?.checked;
-      });
+      const activeFolders=[...folderFilters.querySelectorAll('input:checked')].map(i=>i.parentNode.textContent.split(' (')[0]);
       filteredImages=images.filter(img=>activeFolders.includes(img.folder));
       renderGallery();
     }
+
+    selectAllBtn.addEventListener('click',()=>{
+      const checkboxes=folderFilters.querySelectorAll('input');
+      const anyUnchecked=[...checkboxes].some(c=>!c.checked);
+      checkboxes.forEach(c=>c.checked=anyUnchecked);
+      applyFolderFilter();
+    });
+
+    folderToggle.addEventListener('click',()=>{
+      folderFilters.style.display=folderFilters.style.display==='none'?'flex':'none';
+    });
 
     function renderGallery(){
       gallery.innerHTML='';
@@ -195,9 +231,9 @@
 
     function shuffleArray(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
 
-    shuffleBtn.addEventListener('click',()=>{ if(!images.length) return alert('No images to shuffle'); images=shuffleArray(images); renderGallery(); });
+    shuffleBtn.addEventListener('click',()=>{ if(!images.length) return alert('No images to shuffle'); images=shuffleArray(images); applyFolderFilter(); });
     randomBtn.addEventListener('click',()=>{ if(!images.length) return alert('No images loaded'); openOverlay(Math.floor(Math.random()*images.length)); });
-    clearBtn.addEventListener('click',()=>{ images.forEach(i=>{try{URL.revokeObjectURL(i.url);}catch(e){}}); images=[]; filteredImages=[]; folderMap={}; folderFilters.innerHTML=''; gallery.innerHTML=''; updateInfo(); stopSlideshow(); overlay.classList.remove('open'); });
+    clearBtn.addEventListener('click',()=>{ images.forEach(i=>{try{URL.revokeObjectURL(i.url);}catch(e){}}); images=[]; filteredImages=[]; folderFilters.innerHTML=''; folderPanel.style.display='none'; gallery.innerHTML=''; updateInfo(); stopSlideshow(); overlay.classList.remove('open'); });
 
     startBtn.addEventListener('click',()=>startSlideshow());
     playPauseBtn.addEventListener('click',togglePlayPause);
@@ -225,7 +261,5 @@
       if(Math.abs(dx)>50){ if(dx>0){prev();} else{next();} }
     },{passive:true});
   </script>
-</body>
-</html>
 </body>
 </html>

@@ -30,6 +30,9 @@
 
     .meta{font-size:13px;color:#445;margin-top:6px}
     @media (max-width:600px){ .thumb{width:120px;height:90px} }
+    #wakeLockNotice{color:#c00;margin-top:6px;font-size:13px;}
+    #folderFilters{margin-top:10px;margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;}
+    #folderFilters label{background:#eef2ff;padding:4px 8px;border-radius:6px;cursor:pointer;user-select:none;}
   </style>
 </head>
 <body>
@@ -38,7 +41,7 @@
   <div class="topbar">
     <div class="controls">
       <label class="btn ghost" id="chooseBtn">Choose files / folders</label>
-      <input id="fileInput" type="file" multiple webkitdirectory />
+      <input id="fileInput" type="file" multiple />
       <button class="btn secondary" id="shuffleBtn">Shuffle</button>
       <button class="btn" id="randomBtn">Random</button>
       <button class="btn ghost" id="clearBtn">Clear</button>
@@ -48,7 +51,9 @@
     </div>
   </div>
 
+  <div id="folderFilters"></div>
   <div class="meta" id="info">No images loaded.</div>
+  <div id="wakeLockNotice"></div>
   <div id="gallery" aria-live="polite"></div>
 
   <div id="overlay" role="dialog" aria-modal="true">
@@ -67,40 +72,75 @@
   </div>
 
   <script>
-    const chooseBtn = document.getElementById('chooseBtn');
-    const fileInput = document.getElementById('fileInput');
-    const gallery = document.getElementById('gallery');
-    const info = document.getElementById('info');
-    const shuffleBtn = document.getElementById('shuffleBtn');
-    const randomBtn = document.getElementById('randomBtn');
-    const clearBtn = document.getElementById('clearBtn');
-    const startBtn = document.getElementById('startBtn');
+    const chooseBtn=document.getElementById('chooseBtn');
+    const fileInput=document.getElementById('fileInput');
+    const gallery=document.getElementById('gallery');
+    const info=document.getElementById('info');
+    const wakeLockNotice=document.getElementById('wakeLockNotice');
+    const shuffleBtn=document.getElementById('shuffleBtn');
+    const randomBtn=document.getElementById('randomBtn');
+    const clearBtn=document.getElementById('clearBtn');
+    const startBtn=document.getElementById('startBtn');
+    const folderFilters=document.getElementById('folderFilters');
 
-    const overlay = document.getElementById('overlay');
-    const slideImg = document.getElementById('slideImg');
-    const overlayCaption = document.getElementById('overlayCaption');
-    const playPauseBtn = document.getElementById('playPauseBtn');
-    const prevBtn = document.getElementById('prevBtn');
-    const nextBtn = document.getElementById('nextBtn');
-    const durationInput = document.getElementById('durationInput');
-    const closeOverlay = document.getElementById('closeOverlay');
-    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const overlay=document.getElementById('overlay');
+    const slideImg=document.getElementById('slideImg');
+    const overlayCaption=document.getElementById('overlayCaption');
+    const playPauseBtn=document.getElementById('playPauseBtn');
+    const prevBtn=document.getElementById('prevBtn');
+    const nextBtn=document.getElementById('nextBtn');
+    const durationInput=document.getElementById('durationInput');
+    const closeOverlay=document.getElementById('closeOverlay');
+    const fullscreenBtn=document.getElementById('fullscreenBtn');
 
-    let images = [], currentIndex = 0, intervalMs = parseInt(durationInput.value,10)*1000, slideshowTimer=null, touchStartX=0;
+    let images=[],filteredImages=[],currentIndex=0,intervalMs=parseInt(durationInput.value,10)*1000,slideshowTimer=null,touchStartX=0;
+    let wakeLock=null;
+    let folderMap={}; // folderName -> [images]
 
     chooseBtn.addEventListener('click',()=>fileInput.click());
     fileInput.addEventListener('change',e=>handleFiles(e.target.files));
 
     function handleFiles(fileList){
-      const arr = Array.from(fileList).filter(f=>f.type && f.type.startsWith('image/'));
+      const arr=Array.from(fileList).filter(f=>f.type&&f.type.startsWith('image/'));
       if(!arr.length) return;
-      images.push(...arr.map(f=>({name:f.webkitRelativePath||f.name,url:URL.createObjectURL(f)})));
-      updateInfo(); renderGallery();
+      arr.forEach(f=>{
+        const parts=(f.webkitRelativePath||f.name).split('/');
+        const folder=parts.length>1?parts[0]:'(root)';
+        const obj={name:f.name,folder:folder,url:URL.createObjectURL(f)};
+        images.push(obj);
+        if(!folderMap[folder]) folderMap[folder]=[];
+        folderMap[folder].push(obj);
+      });
+      updateInfo();
+      renderFolderFilters();
+      renderGallery();
     }
+
     function updateInfo(){ info.textContent=`${images.length} image${images.length!==1?'s':''} loaded.`; }
+
+    function renderFolderFilters(){
+      folderFilters.innerHTML='';
+      Object.entries(folderMap).forEach(([folder,arr])=>{
+        const id='folder_'+folder.replace(/[^a-z0-9]/gi,'_');
+        const label=document.createElement('label');
+        label.innerHTML=`<input type="checkbox" id="${id}" checked> ${folder} (${arr.length})`;
+        folderFilters.appendChild(label);
+        label.querySelector('input').addEventListener('change',applyFolderFilter);
+      });
+    }
+
+    function applyFolderFilter(){
+      const activeFolders=Object.keys(folderMap).filter(folder=>{
+        const id='folder_'+folder.replace(/[^a-z0-9]/gi,'_');
+        return document.getElementById(id)?.checked;
+      });
+      filteredImages=images.filter(img=>activeFolders.includes(img.folder));
+      renderGallery();
+    }
+
     function renderGallery(){
       gallery.innerHTML='';
-      images.forEach((it,i)=>{
+      (filteredImages.length?filteredImages:images).forEach((it,i)=>{
         const d=document.createElement('div'); d.className='thumb';
         const img=document.createElement('img'); img.src=it.url; img.alt=it.name;
         d.appendChild(img); d.addEventListener('click',()=>openOverlay(i));
@@ -108,27 +148,56 @@
       });
     }
 
-    function openOverlay(index){ currentIndex=((index%images.length)+images.length)%images.length;
-      const it=images[currentIndex]; slideImg.src=it.url; overlayCaption.textContent=it.name;
+    function openOverlay(index){
+      const arr=filteredImages.length?filteredImages:images;
+      currentIndex=((index%arr.length)+arr.length)%arr.length;
+      const it=arr[currentIndex]; slideImg.src=it.url; overlayCaption.textContent=`${it.folder} / ${it.name}`;
       overlay.classList.add('open');
     }
-    function close(){ overlay.classList.remove('open'); stopSlideshow(); }
-    function showAt(i){ currentIndex=((i%images.length)+images.length)%images.length;
-      const it=images[currentIndex]; slideImg.src=it.url; overlayCaption.textContent=it.name;
+    function close(){ overlay.classList.remove('open'); stopSlideshow(); releaseWakeLock(); }
+    function showAt(i){
+      const arr=filteredImages.length?filteredImages:images;
+      currentIndex=((i%arr.length)+arr.length)%arr.length;
+      const it=arr[currentIndex]; slideImg.src=it.url; overlayCaption.textContent=`${it.folder} / ${it.name}`;
     }
     function next(){ showAt(currentIndex+1); }
     function prev(){ showAt(currentIndex-1); }
 
-    function startSlideshow(){ if(!images.length) return alert('Please select images or folders first'); overlay.classList.add('open');
-      intervalMs=Math.max(1,parseFloat(durationInput.value)||2)*1000; showAt(currentIndex); stopSlideshow();
-      slideshowTimer=setInterval(()=>{next();},intervalMs); playPauseBtn.textContent='⏸ Pause';
+    async function requestWakeLock(){
+      if('wakeLock' in navigator){
+        try{
+          wakeLock=await navigator.wakeLock.request('screen');
+          wakeLock.addEventListener('release',()=>console.log('WakeLock released'));
+          wakeLockNotice.textContent='';
+        } catch(err){
+          console.warn('WakeLock failed:',err);
+          wakeLockNotice.textContent='Wake Lock could not be acquired. Please run via localhost or HTTPS for full functionality.';
+        }
+      } else {
+        wakeLockNotice.textContent='Wake Lock not supported in this browser. Run via localhost/HTTPS for screen to stay on.';
+      }
     }
-    function stopSlideshow(){ if(slideshowTimer){clearInterval(slideshowTimer); slideshowTimer=null;} playPauseBtn.textContent='▶ Play'; }
+    function releaseWakeLock(){ if(wakeLock){ wakeLock.release(); wakeLock=null; } wakeLockNotice.textContent=''; }
+
+    function startSlideshow(){
+      const arr=filteredImages.length?filteredImages:images;
+      if(!arr.length) return alert('Please select images or folders first');
+      overlay.classList.add('open');
+      intervalMs=Math.max(1,parseFloat(durationInput.value)||2)*1000;
+      showAt(currentIndex);
+      stopSlideshow();
+      slideshowTimer=setInterval(()=>{next();},intervalMs);
+      playPauseBtn.textContent='⏸ Pause';
+      requestWakeLock();
+    }
+    function stopSlideshow(){ if(slideshowTimer){clearInterval(slideshowTimer); slideshowTimer=null;} playPauseBtn.textContent='▶ Play'; releaseWakeLock(); }
     function togglePlayPause(){ if(slideshowTimer) stopSlideshow(); else startSlideshow(); }
+
+    function shuffleArray(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
 
     shuffleBtn.addEventListener('click',()=>{ if(!images.length) return alert('No images to shuffle'); images=shuffleArray(images); renderGallery(); });
     randomBtn.addEventListener('click',()=>{ if(!images.length) return alert('No images loaded'); openOverlay(Math.floor(Math.random()*images.length)); });
-    clearBtn.addEventListener('click',()=>{ images.forEach(i=>{try{URL.revokeObjectURL(i.url);}catch(e){} }); images=[]; gallery.innerHTML=''; updateInfo(); stopSlideshow(); overlay.classList.remove('open'); });
+    clearBtn.addEventListener('click',()=>{ images.forEach(i=>{try{URL.revokeObjectURL(i.url);}catch(e){}}); images=[]; filteredImages=[]; folderMap={}; folderFilters.innerHTML=''; gallery.innerHTML=''; updateInfo(); stopSlideshow(); overlay.classList.remove('open'); });
 
     startBtn.addEventListener('click',()=>startSlideshow());
     playPauseBtn.addEventListener('click',togglePlayPause);
@@ -149,11 +218,14 @@
     });
 
     overlay.addEventListener('click',(e)=>{ if(e.target===overlay) close(); });
-    overlay.addEventListener('touchstart',e=>{ touchStartX=e.changedTouches[0].screenX;},{passive:true});
-    overlay.addEventListener('touchend',e=>{ const diff=e.changedTouches[0].screenX-touchStartX; if(Math.abs(diff)>50){ stopSlideshow(); if(diff<0) next(); else prev();}},{passive:true});
 
-    function shuffleArray(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
-    updateInfo();
+    overlay.addEventListener('touchstart',e=>{ touchStartX=e.changedTouches[0].screenX;},{passive:true});
+    overlay.addEventListener('touchend',e=>{
+      const dx=e.changedTouches[0].screenX-touchStartX;
+      if(Math.abs(dx)>50){ if(dx>0){prev();} else{next();} }
+    },{passive:true});
   </script>
+</body>
+</html>
 </body>
 </html>

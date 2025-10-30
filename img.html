@@ -12,18 +12,18 @@
     .btn{background:#0b63ff;color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
     .btn.secondary{background:#eef2ff;color:#0b1220}
     .btn.ghost{background:transparent;border:1px solid #cbd5ff;color:#0b1220}
-    .controls{display:flex;gap:8px;align-items:center}
+    .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     input[type=file]{display:none}
     #gallery{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
     .thumb{width:160px;height:120px;overflow:hidden;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(3,10,30,0.06);cursor:pointer}
     .thumb img{max-width:100%;max-height:100%;object-fit:cover}
 
-    #overlay{position:fixed;inset:0;display:none;background:rgba(6,10,20,0.9);align-items:center;justify-content:center;z-index:999;padding:20px;touch-action:none}
+    #overlay{position:fixed;inset:0;display:none;background:rgba(6,10,20,0.95);align-items:center;justify-content:center;z-index:999;padding:0;touch-action:none}
     #overlay.open{display:flex}
-    #slideBox{max-width:95%;max-height:85%;display:flex;flex-direction:column;align-items:center}
-    #slideImg{max-width:100%;max-height:100%;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,0.6)}
-    #overlayCaption{color:#fff;margin-top:10px;text-align:center}
-    #overlayControls{margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+    #slideBox{position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:100%;}
+    #slideImg{max-width:98%;max-height:98%;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,0.6)}
+    #overlayCaption{position:absolute;top:10px;width:100%;text-align:center;color:#fff;font-size:16px;font-weight:500;text-shadow:0 0 6px rgba(0,0,0,0.7);pointer-events:none}
+    #overlayControls{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:rgba(0,0,0,0.3);padding:6px 10px;border-radius:8px}
     #overlayControls button,input{padding:8px 10px;border-radius:6px;border:0}
     #overlayControls button{cursor:pointer}
     input[type=number]{width:80px}
@@ -31,11 +31,11 @@
     .meta{font-size:13px;color:#445;margin-top:6px}
     @media (max-width:600px){ .thumb{width:120px;height:90px} }
     #wakeLockNotice{color:#c00;margin-top:6px;font-size:13px;}
-    #folderPanel{margin-top:10px;margin-bottom:10px;}
-    #folderToggle{cursor:pointer;color:#0b63ff;margin-bottom:4px;user-select:none;}
-    #folderFilters{display:flex;gap:10px;flex-wrap:wrap;display:none;}
-    #folderFilters label{background:#eef2ff;padding:4px 8px;border-radius:6px;cursor:pointer;user-select:none;}
-    #selectAllBtn{cursor:pointer;color:#0b63ff;margin-bottom:4px;user-select:none;}
+    #folderPanel{margin-top:10px;margin-bottom:10px;display:none;}
+    #folderToggle{cursor:pointer;color:#0b63ff;margin-bottom:4px;user-select:none}
+    #folderFilters{display:flex;gap:10px;flex-wrap:wrap}
+    #folderFilters label{background:#eef2ff;padding:4px 8px;border-radius:6px;cursor:pointer;user-select:none}
+    #selectAllBtn{cursor:pointer;color:#0b63ff;margin-bottom:4px;user-select:none;display:none;}
   </style>
 </head>
 <body>
@@ -48,8 +48,6 @@
       <button class="btn secondary" id="shuffleBtn">Shuffle</button>
       <button class="btn" id="randomBtn">Random</button>
       <button class="btn ghost" id="clearBtn">Clear</button>
-    </div>
-    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
       <label for="startBtn" class="btn" id="startBtn">Start Slideshow</label>
     </div>
   </div>
@@ -155,6 +153,7 @@
       });
       folderPanel.style.display='block';
       folderFilters.style.display='flex';
+      selectAllBtn.style.display='block';
     }
 
     function applyFolderFilter(){
@@ -171,7 +170,9 @@
     });
 
     folderToggle.addEventListener('click',()=>{
-      folderFilters.style.display=folderFilters.style.display==='none'?'flex':'none';
+      const visible=folderFilters.style.display==='flex';
+      folderFilters.style.display=visible?'none':'flex';
+      selectAllBtn.style.display=visible?'none':'block';
     });
 
     function renderGallery(){
@@ -233,7 +234,7 @@
 
     shuffleBtn.addEventListener('click',()=>{ if(!images.length) return alert('No images to shuffle'); images=shuffleArray(images); applyFolderFilter(); });
     randomBtn.addEventListener('click',()=>{ if(!images.length) return alert('No images loaded'); openOverlay(Math.floor(Math.random()*images.length)); });
-    clearBtn.addEventListener('click',()=>{ images.forEach(i=>{try{URL.revokeObjectURL(i.url);}catch(e){}}); images=[]; filteredImages=[]; folderFilters.innerHTML=''; folderPanel.style.display='none'; gallery.innerHTML=''; updateInfo(); stopSlideshow(); overlay.classList.remove('open'); });
+    clearBtn.addEventListener('click',()=>{ images.forEach(i=>{try{URL.revokeObjectURL(i.url);}catch(e){}}); images=[]; filteredImages=[]; folderFilters.innerHTML=''; folderPanel.style.display='none'; selectAllBtn.style.display='none'; gallery.innerHTML=''; updateInfo(); stopSlideshow(); overlay.classList.remove('open'); });
 
     startBtn.addEventListener('click',()=>startSlideshow());
     playPauseBtn.addEventListener('click',togglePlayPause);
@@ -254,7 +255,6 @@
     });
 
     overlay.addEventListener('click',(e)=>{ if(e.target===overlay) close(); });
-
     overlay.addEventListener('touchstart',e=>{ touchStartX=e.changedTouches[0].screenX;},{passive:true});
     overlay.addEventListener('touchend',e=>{
       const dx=e.changedTouches[0].screenX-touchStartX;

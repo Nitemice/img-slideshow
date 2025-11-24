@@ -104,6 +104,61 @@
         input[type=file] {
             display: none;
         }
+        
+        /* Slider toggle styling */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width:50px;
+            height:24px;
+        }
+        
+        .switch input {
+            opacity:0;
+            width:0;
+            height:0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top:0;
+            left:0;
+            right:0;
+            bottom:0;
+            background: var(--secondary);
+            transition:.4s;
+            border-radius:24px;
+        }
+        
+        .slider:before {
+            position:absolute;
+            content:"";
+            height:18px;
+            width:18px;
+            left:3px;
+            bottom:3px;
+            background: var(--text);
+            transition:.4s;
+            border-radius:50%
+        }
+        
+        input:checked + .slider {
+            background: var(--accent-hover);
+        }
+        
+        input:checked + .slider:before {
+            transform:translateX(26px);
+        }
+
+        #shuffleToggleContainer{
+            margin-bottom:6px;
+            display:flex;
+            align-items:center;
+            gap:6px;
+            flex-direction:row;
+            align-items:center
+        }
 
         /* === Gallery === */
         #gallery {
@@ -302,19 +357,28 @@
 
     <div class="topbar">
         <div class="controls-row">
-            <button class="btn primary" id="chooseBtn">Choose files / folders</button>
+            <button class="btn primary" id="chooseBtn">Choose folder</button>
             <input id="fileInput" type="file" multiple webkitdirectory directory />
-            <button class="btn secondary" id="shuffleBtn">Shuffle</button>
             <button class="btn ghost" id="clearBtn">Clear</button>
         </div>
         <div class="controls-row">
             <button for="startBtn" class="btn primary" id="startBtn">Start Slideshow</button>
-            <button class="btn" id="randomBtn">Random</button>
+            <!-- <button class="btn secondary" id="shuffleBtn">Shuffle</button>-->
+            <div id="shuffleToggleContainer">
+                <label class="switch">
+                    <input type="checkbox" id="shuffleToggle" checked>
+                    <span class="slider"></span>
+                </label>
+                <span>Shuffle order</span>
+            </div>
+        </div>
+        <div class="controls-row">
+            <button class="btn primary" id="randomBtn">Random</button>
         </div>
     </div>
 
+    <div id="folderToggle">Show/Hide Folders</div>
     <div id="folderPanel">
-        <div id="folderToggle">Show/Hide Folders</div>
         <div id="selectAllBtn">Select All / Deselect All</div>
         <div id="folderFilters"></div>
     </div>
@@ -332,12 +396,13 @@
             <button id="closeOverlay" class="btn ghost">Close</button>
 
             <div id="bottomControls">
-                <button id="prevBtn" class="btn secondary">⏮ Prev</button>
-                <button id="playPauseBtn" class="btn">⏯ Play</button>
-                <button id="nextBtn" class="btn secondary">Next ⏭</button>
+                <button id="prevBtn" class="btn secondary" aria-label="Previous slide">⏮ Prev</button>
+                <button id="playPauseBtn" class="btn" aria-label="Play or pause slideshow">⏯ Play</button>
+                <button id="nextBtn" class="btn secondary" aria-label="Next slide">Next ⏭</button>
             </div>
             <div id="durationControl">
-                <label>Duration (s): <input id="durationInput" type="number" min="1" value="2" /></label>
+                <label for="durationInput">Duration (s):</label>
+                <input id="durationInput" type="number" min="1" value="2" />
             </div>
         </div>
     </div>
@@ -364,11 +429,19 @@
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
         const durationInput = document.getElementById('durationInput');
-        const closeOverlay = document.getElementById('closeOverlay');
+        const closeOverlayBtn = document.getElementById('closeOverlay');
         const fullscreenBtn = document.getElementById('fullscreenBtn');
 
         let images = [], filteredImages = [], currentIndex = 0, intervalMs = parseInt(durationInput.value, 10) * 1000, slideshowTimer = null, touchStartX = 0;
         let wakeLock = null;
+        // Preload cache for smoother transitions
+        const preloadCache = new Map();
+
+        /** Helper to return the active image array */
+        function getActiveImages()
+        {
+            return filteredImages.length ? filteredImages : images;
+        }
 
         chooseBtn.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', e => handleFiles(e.target.files));
@@ -385,7 +458,11 @@
             {
                 const relPath = (f.webkitRelativePath || f.name).substring(ancestor.length).replace(/^\/+/, '');
                 const folder = relPath.includes('/') ? relPath.split('/').slice(0, -1).join('/') : '(root)';
-                const obj = { name: f.name, folder: folder, url: URL.createObjectURL(f) };
+                const obj = { 
+                    name: f.name,
+                    folder: folder,
+                    url: URL.createObjectURL(f)
+                };
                 images.push(obj);
             });
             updateInfo();
@@ -417,14 +494,22 @@
         {
             folderFilters.innerHTML = '';
             const folders = [...new Set(images.map(i => i.folder))].sort();
-            folders.forEach(folder =>
+            folders.forEach((folder, idx) =>
             {
-                const id = 'folder_' + folder.replace(/[^a-z0-9]/gi, '_');
+                const inputId = 'folder_' + folder.replace(/[^a-z0-9]/gi, '_');
                 const label = document.createElement('label');
+                label.htmlFor = inputId;
                 label.dataset.folder = folder;
-                label.innerHTML = `<input type="checkbox" checked> ${folder} (${images.filter(img => img.folder === folder).length})`;
+
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.checked = true;
+                input.id = inputId;
+                input.addEventListener('change', applyFolderFilter);
+
+                label.appendChild(input);
+                label.append(` ${folder} (${images.filter(img => img.folder === folder).length})`);
                 folderFilters.appendChild(label);
-                label.querySelector('input').addEventListener('change', applyFolderFilter);
             });
             folderPanel.style.display = 'block';
             folderFilters.style.display = 'flex';
@@ -448,45 +533,74 @@
 
         folderToggle.addEventListener('click', () =>
         {
-            const visible = folderFilters.style.display === 'flex';
-            folderFilters.style.display = visible ? 'none' : 'flex';
-            selectAllBtn.style.display = visible ? 'none' : 'block';
+            const invisible = folderPanel.style.display === 'none';
+            folderPanel.style.display = invisible ? 'block' : 'none';
         });
 
         function renderGallery()
         {
             gallery.innerHTML = '';
-            (filteredImages.length ? filteredImages : images).forEach((it, i) =>
+            getActiveImages().forEach((it, i) =>
             {
-                const d = document.createElement('div'); d.className = 'thumb';
-                const img = document.createElement('img'); img.src = it.url; img.alt = it.name;
-                d.appendChild(img); d.addEventListener('click', () => openOverlay(i));
+                const d = document.createElement('div');
+                d.className = 'thumb';
+                const img = document.createElement('img');
+                img.src = it.url;
+                img.alt = it.name;
+                /** Lazy-load thumbnails for performance */
+                img.loading = 'lazy';
+                d.appendChild(img);
+                d.addEventListener('click', () => openOverlay(i));
                 gallery.appendChild(d);
             });
         }
 
         function openOverlay(index)
         {
-            const arr = filteredImages.length ? filteredImages : images;
+            const arr = getActiveImages();
             currentIndex = ((index % arr.length) + arr.length) % arr.length;
-            const it = arr[currentIndex]; slideImg.src = it.url; overlayCaption.textContent = `${it.folder} / ${it.name}`;
+            const it = arr[currentIndex];
+            slideImg.src = it.url;
+            overlayCaption.textContent = `${it.folder} / ${it.name}`;
             overlay.classList.add('open');
+            preloadNextImage();
         }
-        function close()
+
+        function closeOverlay()
         {
             overlay.classList.remove('open');
             stopSlideshow();
             releaseWakeLock();
-            document.exitFullscreen();
+            slideImg.src = ''; // Clear to free memory
+            try { document.exitFullscreen(); } catch { }
         }
+
         function showAt(i)
         {
-            const arr = filteredImages.length ? filteredImages : images;
+            const arr = getActiveImages();
             currentIndex = ((i % arr.length) + arr.length) % arr.length;
-            const it = arr[currentIndex]; slideImg.src = it.url; overlayCaption.textContent = `${it.folder} / ${it.name}`;
+            const it = arr[currentIndex];
+            slideImg.src = it.url;
+            overlayCaption.textContent = `${it.folder} / ${it.name}`;
+            preloadNextImage();
         }
+
         function next() { showAt(currentIndex + 1); }
         function prev() { showAt(currentIndex - 1); }
+
+        /** Preload next image for smoother transitions */
+        function preloadNextImage()
+        {
+            const arr = getActiveImages();
+            const nextIndex = (currentIndex + 1) % arr.length;
+            const nextUrl = arr[nextIndex]?.url;
+            if (nextUrl && !preloadCache.has(nextUrl))
+            {
+                const img = new Image();
+                img.src = nextUrl;
+                preloadCache.set(nextUrl, img);
+            }
+        }
 
         async function requestWakeLock()
         {
@@ -507,64 +621,125 @@
                 wakeLockNotice.textContent = 'Wake Lock not supported in this browser. Run via localhost/HTTPS for screen to stay on.';
             }
         }
+
         function releaseWakeLock()
         {
             if (wakeLock) { wakeLock.release(); wakeLock = null; }
             wakeLockNotice.textContent = '';
         }
 
-        function startSlideshow()
+        function startSlideshow(resume = false)
         {
-            const arr = filteredImages.length ? filteredImages : images;
-            if (!arr.length) return alert('Please select images or folders first');
+            const arr = getActiveImages();
+            if (!arr.length) return alert('Please select folders first');
             overlay.classList.add('open');
             intervalMs = Math.max(1, parseFloat(durationInput.value) || 2) * 1000;
-            showAt(currentIndex);
+            if (!resume) showAt(currentIndex);
             stopSlideshow();
             slideshowTimer = setInterval(() => { next(); }, intervalMs);
             playPauseBtn.textContent = '⏸ Pause';
             requestWakeLock();
         }
+
         function stopSlideshow()
         {
             if (slideshowTimer)
             {
                 clearInterval(slideshowTimer);
                 slideshowTimer = null;
-            } playPauseBtn.textContent = '▶ Play';
+            }
+            playPauseBtn.textContent = '▶ Play';
             releaseWakeLock();
         }
-        function togglePlayPause() { if (slideshowTimer) stopSlideshow(); else startSlideshow(); }
 
-        function shuffleArray(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]]; } return a; }
+        function togglePlayPause() { if (slideshowTimer) stopSlideshow(); else startSlideshow(true); }
 
-        shuffleBtn.addEventListener('click', () => { if (!images.length) return alert('No images to shuffle'); images = shuffleArray(images); applyFolderFilter(); });
-        randomBtn.addEventListener('click', () => { if (!images.length) return alert('No images loaded'); openOverlay(Math.floor(Math.random() * images.length)); });
-        clearBtn.addEventListener('click', () => { images.forEach(i => { try { URL.revokeObjectURL(i.url); } catch (e) { } }); images = []; filteredImages = []; folderFilters.innerHTML = ''; folderPanel.style.display = 'none'; selectAllBtn.style.display = 'none'; gallery.innerHTML = ''; updateInfo(); stopSlideshow(); overlay.classList.remove('open'); });
+        function shuffleArray(a)
+        {
+            for (let i = a.length - 1; i > 0; i--)
+            {
+                const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        }
+
+        shuffleBtn.addEventListener('click', () =>
+        {
+            if (!images.length)
+            {
+                return alert('No images to shuffle');
+            }
+            images = shuffleArray(images);
+            applyFolderFilter();
+        });
+        randomBtn.addEventListener('click', () =>
+        {
+            if (!images.length)
+            {
+                return alert('No images loaded');
+            }
+            openOverlay(Math.floor(Math.random() * images.length));
+        });
+
+        clearBtn.addEventListener('click', () =>
+        {
+            images.forEach(i => { try { URL.revokeObjectURL(i.url); } catch { } });
+            images = [];
+            filteredImages = [];
+            folderFilters.innerHTML = '';
+            folderPanel.style.display = 'none';
+            gallery.innerHTML = '';
+            updateInfo();
+            stopSlideshow();
+            overlay.classList.remove('open');
+            slideImg.src = ''; // Clear to free memory
+        });
 
         startBtn.addEventListener('click', () => startSlideshow());
         playPauseBtn.addEventListener('click', togglePlayPause);
         nextBtn.addEventListener('click', () => { stopSlideshow(); next(); });
         prevBtn.addEventListener('click', () => { stopSlideshow(); prev(); });
-        closeOverlay.addEventListener('click', close);
+        closeOverlayBtn.addEventListener('click', closeOverlay);
 
         fullscreenBtn.addEventListener('click', () =>
         {
-            if (!document.fullscreenElement) { overlay.requestFullscreen().catch(err => console.warn(err)); }
-            else { document.exitFullscreen(); }
+            if (!document.fullscreenElement)
+            {
+                overlay.requestFullscreen().catch(err => console.warn(err));
+            }
+            else
+            {
+                try { document.exitFullscreen(); } catch { }
+            }
         });
 
-        durationInput.addEventListener('change', () => { intervalMs = Math.max(1, parseFloat(durationInput.value) || 2) * 1000; if (slideshowTimer) { startSlideshow(); } });
+        durationInput.addEventListener('change', () =>
+        {
+            intervalMs = Math.max(1, parseFloat(durationInput.value) || 2) * 1000;
+            // resume instead of restart
+            if (slideshowTimer)
+            {
+                startSlideshow(true);
+            }
+        });
 
         document.addEventListener('keydown', (e) =>
         {
             if (!overlay.classList.contains('open')) return;
-            if (e.key === 'Escape') close(); if (e.key === 'ArrowRight') { stopSlideshow(); next(); }
-            if (e.key === 'ArrowLeft') { stopSlideshow(); prev(); } if (e.key === ' ') { e.preventDefault(); togglePlayPause(); }
+            if (e.key === 'Escape') closeOverlay();
+            if (e.key === 'ArrowRight') { stopSlideshow(); next(); }
+            if (e.key === 'ArrowLeft') { stopSlideshow(); prev(); }
+            if (e.key === ' ') { e.preventDefault(); togglePlayPause(); }
         });
 
-        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-        overlay.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
+        overlay.addEventListener('click', (e) =>
+        {
+            if (e.target === overlay) closeOverlay();
+        });
+        overlay.addEventListener('touchstart', e =>
+        {
+            touchStartX = e.changedTouches[0].screenX;
+        }, { passive: true });
         overlay.addEventListener('touchend', e =>
         {
             const dx = e.changedTouches[0].screenX - touchStartX;

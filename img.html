@@ -43,15 +43,18 @@
 
         .topbar {
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
+            flex-wrap: wrap;
             gap: 6px;
             margin-bottom: 12px;
         }
 
         .controls-row {
             display: flex;
-            gap: 10px;
+            flex: auto;
             flex-wrap: wrap;
+            gap: 10px;
+            min-width: 35%;
         }
 
         /* === Buttons === */
@@ -104,60 +107,58 @@
         input[type=file] {
             display: none;
         }
-        
+
         /* Slider toggle styling */
         .switch {
             position: relative;
             display: inline-block;
-            width:50px;
-            height:24px;
+            width: 50px;
+            height: 24px;
         }
-        
+
         .switch input {
-            opacity:0;
-            width:0;
-            height:0;
+            opacity: 0;
+            width: 0;
+            height: 0;
         }
-        
+
         .slider {
             position: absolute;
             cursor: pointer;
-            top:0;
-            left:0;
-            right:0;
-            bottom:0;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             background: var(--secondary);
-            transition:.4s;
-            border-radius:24px;
-        }
-        
-        .slider:before {
-            position:absolute;
-            content:"";
-            height:18px;
-            width:18px;
-            left:3px;
-            bottom:3px;
-            background: var(--text);
-            transition:.4s;
-            border-radius:50%
-        }
-        
-        input:checked + .slider {
-            background: var(--accent-hover);
-        }
-        
-        input:checked + .slider:before {
-            transform:translateX(26px);
+            transition: .4s;
+            border-radius: 24px;
         }
 
-        #shuffleToggleContainer{
-            margin-bottom:6px;
-            display:flex;
-            align-items:center;
-            gap:6px;
-            flex-direction:row;
-            align-items:center
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background: var(--text);
+            transition: .4s;
+            border-radius: 50%
+        }
+
+        input:checked+.slider {
+            background: var(--accent-hover);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(26px);
+        }
+
+        #shuffleToggleContainer {
+            display: flex;
+            flex-direction: row-reverse;
+            gap: 6px;
+            align-items: center;
         }
 
         /* === Gallery === */
@@ -296,7 +297,7 @@
             }
         }
 
-        #wakeLockNotice {
+        #notice {
             color: var(--danger);
             margin-top: 6px;
             font-size: 13px;
@@ -342,7 +343,7 @@
             accent-color: var(--accent);
         }
 
-        #selectAllBtn {
+        #toggleAllBtn {
             cursor: pointer;
             color: var(--secondary);
             margin-bottom: 4px;
@@ -356,35 +357,37 @@
     <h1>ORIS Image Slideshow</h1>
 
     <div class="topbar">
-        <div class="controls-row">
-            <button class="btn primary" id="chooseBtn">Choose folder</button>
+        <fieldset class="controls-row">
+            <legend>Load images</legend>
+            <button class="btn primary" id="chooseBtn">Add folder</button>
             <input id="fileInput" type="file" multiple webkitdirectory directory />
-            <button class="btn ghost" id="clearBtn">Clear</button>
-        </div>
-        <div class="controls-row">
+            <button class="btn ghost" id="clearBtn">Clear all</button>
+        </fieldset>
+        <fieldset class="controls-row">
+            <legend>Slideshow</legend>
             <button for="startBtn" class="btn primary" id="startBtn">Start Slideshow</button>
-            <!-- <button class="btn secondary" id="shuffleBtn">Shuffle</button>-->
             <div id="shuffleToggleContainer">
+                <span>Shuffle</span>
                 <label class="switch">
-                    <input type="checkbox" id="shuffleToggle" checked>
+                    <input type="checkbox" id="shuffleToggle" checked />
                     <span class="slider"></span>
                 </label>
-                <span>Shuffle order</span>
             </div>
-        </div>
-        <div class="controls-row">
+        </fieldset>
+        <fieldset class="controls-row">
+            <legend>View</legend>
             <button class="btn primary" id="randomBtn">Random</button>
-        </div>
+        </fieldset>
     </div>
 
-    <div id="folderToggle">Show/Hide Folders</div>
+    <div id="folderToggle">Hide Folders</div>
     <div id="folderPanel">
-        <div id="selectAllBtn">Select All / Deselect All</div>
+        <div id="toggleAllBtn">Toggle All Folders</div>
         <div id="folderFilters"></div>
     </div>
 
     <div class="meta" id="info">No images loaded.</div>
-    <div id="wakeLockNotice"></div>
+    <div id="notice"></div>
     <div id="gallery" aria-live="polite"></div>
 
     <div id="overlay" role="dialog" aria-modal="true">
@@ -397,7 +400,7 @@
 
             <div id="bottomControls">
                 <button id="prevBtn" class="btn secondary" aria-label="Previous slide">⏮ Prev</button>
-                <button id="playPauseBtn" class="btn" aria-label="Play or pause slideshow">⏯ Play</button>
+                <button id="playPauseBtn" class="btn" aria-label="Play or pause slideshow">▶ Play</button>
                 <button id="nextBtn" class="btn secondary" aria-label="Next slide">Next ⏭</button>
             </div>
             <div id="durationControl">
@@ -410,17 +413,17 @@
     <script>
         const chooseBtn = document.getElementById('chooseBtn');
         const fileInput = document.getElementById('fileInput');
-        const gallery = document.getElementById('gallery');
-        const info = document.getElementById('info');
-        const wakeLockNotice = document.getElementById('wakeLockNotice');
-        const shuffleBtn = document.getElementById('shuffleBtn');
-        const randomBtn = document.getElementById('randomBtn');
         const clearBtn = document.getElementById('clearBtn');
         const startBtn = document.getElementById('startBtn');
-        const folderFilters = document.getElementById('folderFilters');
+        const shuffleToggle = document.getElementById('shuffleToggle');
+        const randomBtn = document.getElementById('randomBtn');
         const folderPanel = document.getElementById('folderPanel');
+        const folderFilters = document.getElementById('folderFilters');
         const folderToggle = document.getElementById('folderToggle');
-        const selectAllBtn = document.getElementById('selectAllBtn');
+        const toggleAllBtn = document.getElementById('toggleAllBtn');
+        const info = document.getElementById('info');
+        const notice = document.getElementById('notice');
+        const gallery = document.getElementById('gallery');
 
         const overlay = document.getElementById('overlay');
         const slideImg = document.getElementById('slideImg');
@@ -429,27 +432,83 @@
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
         const durationInput = document.getElementById('durationInput');
-        const closeOverlayBtn = document.getElementById('closeOverlay');
         const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const closeOverlayBtn = document.getElementById('closeOverlay');
 
-        let images = [], filteredImages = [], currentIndex = 0, intervalMs = parseInt(durationInput.value, 10) * 1000, slideshowTimer = null, touchStartX = 0;
-        let wakeLock = null;
+        let loadedImages = [], activeImages = [], currentIndex = 0,
+            slideshowTimer = null, touchStartX = 0, wakeLock = null;
+        let intervalMs = parseInt(durationInput.value, 10) * 1000;
+
         // Preload cache for smoother transitions
         const preloadCache = new Map();
 
-        /** Helper to return the active image array */
-        function getActiveImages()
+        // Functionality
+        function shuffleArray(srcArray)
         {
-            return filteredImages.length ? filteredImages : images;
+            let destArray = srcArray.slice();
+            for (let i = destArray.length - 1; i > 0; i--)
+            {
+                const j = Math.floor(Math.random() * (i + 1));
+                [destArray[i], destArray[j]] = [destArray[j], destArray[i]];
+            }
+            return destArray;
         }
 
+        function sortStrings(left, right)
+        {
+            if (left < right)
+            {
+                return -1;
+            }
+            if (left > right)
+            {
+                return 1;
+            }
+
+            // names must be equal
+            return 0;
+        }
+
+        function safeId(prefix, str, idx)
+        {
+            return `${prefix}_${idx}_${btoa(unescape(encodeURIComponent(str))).replace(/=/g, '')}`;
+
+        }
+
+        function deepestCommonAncestor(paths)
+        {
+            if (!paths.length) return '';
+
+            // Split each path into its segments: "a/b/c" → ["a", "b", "c"]
+            const splitPaths = paths.map(p => p.split('/'));
+
+            let i = 0;
+
+            while (true)
+            {
+                // Look at the current segment in the first path
+                const segment = splitPaths[0][i];
+
+                // If we've run out of segments, stop
+                if (segment === undefined) break;
+
+                // If any path differs at this position, stop
+                if (!splitPaths.every(sp => sp[i] === segment)) break;
+
+                // Otherwise this segment is common — keep going
+                i++;
+            }
+
+            // Join all the shared segments back into a path
+            return splitPaths[0].slice(0, i).join('/');
+        }
+
+        // Image Loading
         chooseBtn.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', e => handleFiles(e.target.files));
 
         function handleFiles(fileList)
         {
-            images = [];
-            filteredImages = [];
             const arr = Array.from(fileList).filter(f => f.type && f.type.startsWith('image/'));
             if (!arr.length) return;
             const paths = arr.map(f => f.webkitRelativePath || f.name);
@@ -458,42 +517,53 @@
             {
                 const relPath = (f.webkitRelativePath || f.name).substring(ancestor.length).replace(/^\/+/, '');
                 const folder = relPath.includes('/') ? relPath.split('/').slice(0, -1).join('/') : '(root)';
-                const obj = { 
+                const img = {
                     name: f.name,
                     folder: folder,
                     url: URL.createObjectURL(f)
                 };
-                images.push(obj);
+                if (!loadedImages.some(l => l.folder === img.folder && l.name === img.name))
+                {
+                    loadedImages.push(img);
+                }
             });
             updateInfo();
             renderFolderFilters();
-            applyFolderFilter();
+            updateActiveImages();
         }
 
-        function deepestCommonAncestor(paths)
+        clearBtn.addEventListener('click', () =>
         {
-            if (!paths.length) return '';
-            const splitPaths = paths.map(p => p.split('/'));
-            let i = 0;
-            while (true)
-            {
-                const segment = splitPaths[0][i];
-                if (segment === undefined) break;
-                if (!splitPaths.every(sp => sp[i] === segment)) break;
-                i++;
-            }
-            return splitPaths[0].slice(0, i).join('/');
-        }
+            loadedImages.forEach(i => { try { URL.revokeObjectURL(i.url); } catch { } });
+            loadedImages = [];
+            activeImages = [];
+            folderFilters.innerHTML = '';
+            folderPanel.style.display = 'none';
+            gallery.innerHTML = '';
+            updateInfo();
+            stopSlideshow();
+            overlay.classList.remove('open');
+            slideImg.src = ''; // Clear to free memory
+            preloadCache.clear();
+        });
 
         function updateInfo()
         {
-            info.textContent = `${images.length} image${images.length !== 1 ? 's' : ''} loaded.`;
+            info.textContent = `${loadedImages.length} image${loadedImages.length !== 1 ? 's' : ''} loaded.`;
         }
+
+        // Folder Filtering
+        folderToggle.addEventListener('click', () =>
+        {
+            const invisible = folderPanel.style.display === 'none';
+            folderPanel.style.display = invisible ? 'block' : 'none';
+            folderToggle.textContent = invisible ? 'Hide Folders' : 'Show Folders';
+        });
 
         function renderFolderFilters()
         {
             folderFilters.innerHTML = '';
-            const folders = [...new Set(images.map(i => i.folder))].sort();
+            const folders = [...new Set(loadedImages.map(i => i.folder))].sort();
             folders.forEach((folder, idx) =>
             {
                 const inputId = 'folder_' + folder.replace(/[^a-z0-9]/gi, '_');
@@ -505,42 +575,77 @@
                 input.type = 'checkbox';
                 input.checked = true;
                 input.id = inputId;
-                input.addEventListener('change', applyFolderFilter);
+                input.addEventListener('change', updateActiveImages);
 
                 label.appendChild(input);
-                label.append(` ${folder} (${images.filter(img => img.folder === folder).length})`);
+                label.append(` ${folder} (${loadedImages.filter(img => img.folder === folder).length})`);
                 folderFilters.appendChild(label);
             });
             folderPanel.style.display = 'block';
             folderFilters.style.display = 'flex';
-            selectAllBtn.style.display = 'block';
+            toggleAllBtn.style.display = 'block';
         }
 
-        function applyFolderFilter()
-        {
-            const activeFolders = [...folderFilters.querySelectorAll('input:checked')].map(i => i.parentNode.dataset.folder);
-            filteredImages = images.filter(img => activeFolders.includes(img.folder));
-            renderGallery();
-        }
-
-        selectAllBtn.addEventListener('click', () =>
+        toggleAllBtn.addEventListener('click', () =>
         {
             const checkboxes = folderFilters.querySelectorAll('input');
             const anyUnchecked = [...checkboxes].some(c => !c.checked);
             checkboxes.forEach(c => c.checked = anyUnchecked);
-            applyFolderFilter();
+            updateActiveImages();
         });
 
-        folderToggle.addEventListener('click', () =>
+        function applyFolderFilter(srcImages)
         {
-            const invisible = folderPanel.style.display === 'none';
-            folderPanel.style.display = invisible ? 'block' : 'none';
+            const activeFolders = [...folderFilters.querySelectorAll('input:checked')].map(i => i.parentNode.dataset.folder);
+            return srcImages.filter(img => activeFolders.includes(img.folder));
+        }
+
+        // Slideshow Settings
+        shuffleToggle.addEventListener('click', () =>
+        {
+            if (!loadedImages.length)
+            {
+                notice.textContent = 'No images to shuffle';
+            }
+            updateActiveImages();
         });
+
+        function applySortOrder(srcImages)
+        {
+            if (shuffleToggle.checked)
+            {
+                return shuffleArray(srcImages);
+            }
+            else
+            {
+                return srcImages.toSorted((a, b) => sortStrings(a.folder + a.name, b.folder + b.name));
+            }
+        }
+
+        // View
+        startBtn.addEventListener('click', () => startSlideshow());
+        randomBtn.addEventListener('click', () =>
+        {
+            if (!activeImages.length)
+            {
+                notice.textContent = 'No images loaded';
+                return;
+            }
+            openOverlay(Math.floor(Math.random() * activeImages.length));
+        });
+
+        // Render Images
+        function updateActiveImages()
+        {
+            activeImages = applyFolderFilter(loadedImages);
+            activeImages = applySortOrder(activeImages);
+            renderGallery();
+        }
 
         function renderGallery()
         {
             gallery.innerHTML = '';
-            getActiveImages().forEach((it, i) =>
+            activeImages.forEach((it, i) =>
             {
                 const d = document.createElement('div');
                 d.className = 'thumb';
@@ -555,15 +660,12 @@
             });
         }
 
+        // Overlay Functionality
+        closeOverlayBtn.addEventListener('click', closeOverlay);
         function openOverlay(index)
         {
-            const arr = getActiveImages();
-            currentIndex = ((index % arr.length) + arr.length) % arr.length;
-            const it = arr[currentIndex];
-            slideImg.src = it.url;
-            overlayCaption.textContent = `${it.folder} / ${it.name}`;
             overlay.classList.add('open');
-            preloadNextImage();
+            showAt(index);
         }
 
         function closeOverlay()
@@ -577,23 +679,20 @@
 
         function showAt(i)
         {
-            const arr = getActiveImages();
-            currentIndex = ((i % arr.length) + arr.length) % arr.length;
-            const it = arr[currentIndex];
+            if (!activeImages.length) return;
+            currentIndex = ((i % activeImages.length) + activeImages.length) % activeImages.length;
+            const it = activeImages[currentIndex];
             slideImg.src = it.url;
             overlayCaption.textContent = `${it.folder} / ${it.name}`;
             preloadNextImage();
         }
 
-        function next() { showAt(currentIndex + 1); }
-        function prev() { showAt(currentIndex - 1); }
-
         /** Preload next image for smoother transitions */
         function preloadNextImage()
         {
-            const arr = getActiveImages();
-            const nextIndex = (currentIndex + 1) % arr.length;
-            const nextUrl = arr[nextIndex]?.url;
+            if (!activeImages.length) return;
+            const nextIndex = (currentIndex + 1) % activeImages.length;
+            const nextUrl = activeImages[nextIndex]?.url;
             if (nextUrl && !preloadCache.has(nextUrl))
             {
                 const img = new Image();
@@ -602,38 +701,19 @@
             }
         }
 
-        async function requestWakeLock()
-        {
-            if ('wakeLock' in navigator)
-            {
-                try
-                {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    wakeLock.addEventListener('release', () => console.log('WakeLock released'));
-                    wakeLockNotice.textContent = '';
-                } catch (err)
-                {
-                    console.warn('WakeLock failed:', err);
-                    wakeLockNotice.textContent = 'Wake Lock could not be acquired. Please run via localhost or HTTPS for full functionality.';
-                }
-            } else
-            {
-                wakeLockNotice.textContent = 'Wake Lock not supported in this browser. Run via localhost/HTTPS for screen to stay on.';
-            }
-        }
+        function next() { showAt(currentIndex + 1); }
+        function prev() { showAt(currentIndex - 1); }
 
-        function releaseWakeLock()
-        {
-            if (wakeLock) { wakeLock.release(); wakeLock = null; }
-            wakeLockNotice.textContent = '';
-        }
-
+        // Slideshow
         function startSlideshow(resume = false)
         {
-            const arr = getActiveImages();
-            if (!arr.length) return alert('Please select folders first');
+            if (!activeImages.length)
+            {
+                notice.textContent = 'Please select folders first';
+                return;
+            }
             overlay.classList.add('open');
-            intervalMs = Math.max(1, parseFloat(durationInput.value) || 2) * 1000;
+            intervalMs = Math.max(1, parseFloat(durationInput.value)) * 1000;
             if (!resume) showAt(currentIndex);
             stopSlideshow();
             slideshowTimer = setInterval(() => { next(); }, intervalMs);
@@ -654,52 +734,9 @@
 
         function togglePlayPause() { if (slideshowTimer) stopSlideshow(); else startSlideshow(true); }
 
-        function shuffleArray(a)
-        {
-            for (let i = a.length - 1; i > 0; i--)
-            {
-                const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]];
-            }
-            return a;
-        }
-
-        shuffleBtn.addEventListener('click', () =>
-        {
-            if (!images.length)
-            {
-                return alert('No images to shuffle');
-            }
-            images = shuffleArray(images);
-            applyFolderFilter();
-        });
-        randomBtn.addEventListener('click', () =>
-        {
-            if (!images.length)
-            {
-                return alert('No images loaded');
-            }
-            openOverlay(Math.floor(Math.random() * images.length));
-        });
-
-        clearBtn.addEventListener('click', () =>
-        {
-            images.forEach(i => { try { URL.revokeObjectURL(i.url); } catch { } });
-            images = [];
-            filteredImages = [];
-            folderFilters.innerHTML = '';
-            folderPanel.style.display = 'none';
-            gallery.innerHTML = '';
-            updateInfo();
-            stopSlideshow();
-            overlay.classList.remove('open');
-            slideImg.src = ''; // Clear to free memory
-        });
-
-        startBtn.addEventListener('click', () => startSlideshow());
         playPauseBtn.addEventListener('click', togglePlayPause);
         nextBtn.addEventListener('click', () => { stopSlideshow(); next(); });
         prevBtn.addEventListener('click', () => { stopSlideshow(); prev(); });
-        closeOverlayBtn.addEventListener('click', closeOverlay);
 
         fullscreenBtn.addEventListener('click', () =>
         {
@@ -723,6 +760,7 @@
             }
         });
 
+        // Keyboard controls
         document.addEventListener('keydown', (e) =>
         {
             if (!overlay.classList.contains('open')) return;
@@ -732,6 +770,7 @@
             if (e.key === ' ') { e.preventDefault(); togglePlayPause(); }
         });
 
+        // Touch controls
         overlay.addEventListener('click', (e) =>
         {
             if (e.target === overlay) closeOverlay();
@@ -745,6 +784,37 @@
             const dx = e.changedTouches[0].screenX - touchStartX;
             if (Math.abs(dx) > 50) { if (dx > 0) { prev(); } else { next(); } }
         }, { passive: true });
+
+        // Wakelock
+        async function requestWakeLock()
+        {
+            if ('wakeLock' in navigator)
+            {
+                try
+                {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => console.log('WakeLock released'));
+                    notice.textContent = '';
+                } catch (err)
+                {
+                    console.warn('WakeLock failed:', err);
+                    notice.textContent = 'Wake Lock could not be acquired. Please run via localhost or HTTPS for full functionality.';
+                }
+            } else
+            {
+                notice.textContent = 'Wake Lock not supported in this browser. Run via localhost/HTTPS for screen to stay on.';
+            }
+        }
+
+        function releaseWakeLock()
+        {
+            if (wakeLock)
+            {
+                wakeLock.release(); wakeLock = null;
+            }
+            notice.textContent = '';
+        }
+
     </script>
 </body>
 

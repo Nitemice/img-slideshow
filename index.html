@@ -206,6 +206,22 @@
             display: flex;
         }
 
+        #overlay:not(.show-ui) #bottomControls,
+        #overlay:not(.show-ui) #durationControl {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #overlay.show-ui #bottomControls,
+        #overlay.show-ui #durationControl {
+            opacity: 1;
+        }
+
+        #bottomControls,
+        #durationControl {
+            transition: opacity 0.25s ease;
+        }
+
         #slideBox {
             position: relative;
             display: flex;
@@ -377,6 +393,7 @@
         <fieldset class="controls-row">
             <legend>View</legend>
             <button class="btn primary" id="randomBtn">Random</button>
+            <button class="btn primary" id="currentBtn">Current</button>
         </fieldset>
     </div>
 
@@ -417,6 +434,7 @@
         const startBtn = document.getElementById('startBtn');
         const shuffleToggle = document.getElementById('shuffleToggle');
         const randomBtn = document.getElementById('randomBtn');
+        const currentBtn = document.getElementById('currentBtn');
         const folderPanel = document.getElementById('folderPanel');
         const folderFilters = document.getElementById('folderFilters');
         const folderToggle = document.getElementById('folderToggle');
@@ -438,6 +456,7 @@
         let loadedImages = [], activeImages = [], currentIndex = 0,
             slideshowTimer = null, touchStartX = 0, wakeLock = null;
         let intervalMs = parseInt(durationInput.value, 10) * 1000;
+        let uiTimeout = null;
 
         // Preload cache for smoother transitions
         const preloadCache = new Map();
@@ -480,7 +499,7 @@
             if (!paths.length) return '';
 
             // Split each path into its segments: "a/b/c" → ["a", "b", "c"]
-            const splitPaths = paths.map(p => p.split('/'));
+            const splitPaths = paths.map(p => p.replaceAll('\\', '/').split('/'));
 
             let i = 0;
 
@@ -566,7 +585,7 @@
             const folders = [...new Set(loadedImages.map(i => i.folder))].sort();
             folders.forEach((folder, idx) =>
             {
-                const inputId = 'folder_' + folder.replace(/[^a-z0-9]/gi, '_');
+                const inputId = safeId('folder', folder, idx);
                 const label = document.createElement('label');
                 label.htmlFor = inputId;
                 label.dataset.folder = folder;
@@ -633,6 +652,15 @@
             }
             openOverlay(Math.floor(Math.random() * activeImages.length));
         });
+        currentBtn.addEventListener('click', () =>
+        {
+            if (!activeImages.length)
+            {
+                notice.textContent = 'No images loaded';
+                return;
+            }
+            openOverlay(currentIndex);
+        });
 
         // Render Images
         function updateActiveImages()
@@ -677,6 +705,20 @@
             try { document.exitFullscreen(); } catch { }
         }
 
+        function showOverlayUI()
+        {
+            overlay.classList.add('show-ui');
+            clearTimeout(uiTimeout);
+            uiTimeout = setTimeout(() =>
+            {
+                overlay.classList.remove('show-ui');
+            }, 2000);
+        }
+
+        overlay.addEventListener('mousemove', showOverlayUI);
+        overlay.addEventListener('touchstart', showOverlayUI, { passive: true });
+        document.addEventListener('keydown', showOverlayUI);
+
         function showAt(i)
         {
             if (!activeImages.length) return;
@@ -714,8 +756,8 @@
             }
             overlay.classList.add('open');
             intervalMs = Math.max(1, parseFloat(durationInput.value)) * 1000;
-            if (!resume) showAt(currentIndex);
             stopSlideshow();
+            if (!resume) showAt(currentIndex);
             slideshowTimer = setInterval(() => { next(); }, intervalMs);
             playPauseBtn.textContent = '⏸ Pause';
             requestWakeLock();
@@ -732,7 +774,16 @@
             releaseWakeLock();
         }
 
-        function togglePlayPause() { if (slideshowTimer) stopSlideshow(); else startSlideshow(true); }
+        function togglePlayPause()
+        {
+            if (slideshowTimer)
+            {
+                stopSlideshow();
+            } else
+            {
+                startSlideshow(true);
+            }
+        }
 
         playPauseBtn.addEventListener('click', togglePlayPause);
         nextBtn.addEventListener('click', () => { stopSlideshow(); next(); });
@@ -782,7 +833,18 @@
         overlay.addEventListener('touchend', e =>
         {
             const dx = e.changedTouches[0].screenX - touchStartX;
-            if (Math.abs(dx) > 50) { if (dx > 0) { prev(); } else { next(); } }
+            if (Math.abs(dx) > 50)
+            {
+                if (dx > 0)
+                {
+                    prev();
+                    startSlideshow(true);
+                } else
+                {
+                    next();
+                    startSlideshow(true);
+                }
+            }
         }, { passive: true });
 
         // Wakelock

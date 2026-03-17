@@ -381,7 +381,7 @@
         </fieldset>
         <fieldset class="controls-row">
             <legend>Slideshow</legend>
-            <button for="startBtn" class="btn primary" id="startBtn">Start Slideshow</button>
+            <button class="btn primary" id="startBtn">Start Slideshow</button>
             <div id="shuffleToggleContainer">
                 <span>Shuffle</span>
                 <label class="switch">
@@ -422,7 +422,7 @@
             </div>
             <div id="durationControl">
                 <label for="durationInput">Duration (s):</label>
-                <input id="durationInput" type="number" min="1" value="2" />
+                <input id="durationInput" type="number" min="0.1" step="0.5" value="2" />
             </div>
         </div>
     </div>
@@ -473,24 +473,9 @@
             return destArray;
         }
 
-        function sortStrings(left, right)
-        {
-            if (left < right)
-            {
-                return -1;
-            }
-            if (left > right)
-            {
-                return 1;
-            }
-
-            // names must be equal
-            return 0;
-        }
-
         function safeId(prefix, str, idx)
         {
-            return `${prefix}_${idx}_${btoa(unescape(encodeURIComponent(str))).replace(/=/g, '')}`;
+            return `${prefix}_${idx}_${btoa(encodeURIComponent(str)).replace(/=/g, '')}`;
 
         }
 
@@ -536,14 +521,13 @@
             {
                 const relPath = (f.webkitRelativePath || f.name).substring(ancestor.length).replace(/^\/+/, '');
                 const folder = relPath.includes('/') ? relPath.split('/').slice(0, -1).join('/') : '(root)';
-                const img = {
-                    name: f.name,
-                    folder: folder,
-                    url: URL.createObjectURL(f)
-                };
-                if (!loadedImages.some(l => l.folder === img.folder && l.name === img.name))
+                if (!loadedImages.some(l => l.folder === folder && l.name === f.name))
                 {
-                    loadedImages.push(img);
+                    loadedImages.push({
+                        name: f.name,
+                        folder: folder,
+                        url: URL.createObjectURL(f)
+                    });
                 }
             });
             updateInfo();
@@ -620,7 +604,7 @@
         }
 
         // Slideshow Settings
-        shuffleToggle.addEventListener('click', () =>
+        shuffleToggle.addEventListener('change', () =>
         {
             if (!loadedImages.length)
             {
@@ -637,7 +621,9 @@
             }
             else
             {
-                return srcImages.toSorted((a, b) => sortStrings(a.folder + a.name, b.folder + b.name));
+                return srcImages.toSorted((a, b) =>
+                    (a.folder + a.name).localeCompare(b.folder + b.name, undefined, { numeric: true, sensitivity: 'base' })
+                );
             }
         }
 
@@ -800,6 +786,10 @@
                 try { document.exitFullscreen(); } catch { }
             }
         });
+        document.addEventListener('fullscreenchange', () =>
+        {
+            fullscreenBtn.textContent = document.fullscreenElement ? 'Exit Fullscreen' : 'Fullscreen';
+        });
 
         durationInput.addEventListener('change', () =>
         {
@@ -835,15 +825,10 @@
             const dx = e.changedTouches[0].screenX - touchStartX;
             if (Math.abs(dx) > 50)
             {
-                if (dx > 0)
-                {
-                    prev();
-                    startSlideshow(true);
-                } else
-                {
-                    next();
-                    startSlideshow(true);
-                }
+                const wasPlaying = !!slideshowTimer;
+                stopSlideshow();
+                dx > 0 ? prev() : next();
+                if (wasPlaying) startSlideshow(true);
             }
         }, { passive: true });
 

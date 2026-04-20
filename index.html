@@ -41,6 +41,13 @@
             letter-spacing: 0.5px;
         }
 
+        .flex-break {
+            width: 100%;
+            height: 0;
+            margin: 0;
+            padding: 0;
+        }
+
         .topbar {
             display: flex;
             flex-direction: row;
@@ -54,7 +61,7 @@
             flex: auto;
             flex-wrap: wrap;
             gap: 10px;
-            min-width: 35%;
+            min-width: 30%;
         }
 
         /* === Buttons === */
@@ -321,25 +328,29 @@
 
         /* === Folder Filters === */
         #folderPanel {
-            margin-top: 10px;
-            margin-bottom: 10px;
+            /* margin-top: 10px; */
+            /* margin-bottom: 10px; */
             display: none;
+            width: 100%;
         }
 
         #folderToggle {
+            display: none;
             cursor: pointer;
             color: var(--secondary);
             margin-bottom: 4px;
             user-select: none;
         }
 
-        #folderFilters {
+        #folderFilterList {
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
+            margin-top: 10px;
+            margin-bottom: 10px;
         }
 
-        #folderFilters label {
+        #folderFilterList label {
             background: var(--panel);
             padding: 4px 8px;
             border-radius: 6px;
@@ -350,21 +361,13 @@
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
         }
 
-        #folderFilters label:hover {
+        #folderFilterList label:hover {
             border-color: var(--accent);
             color: var(--accent);
         }
 
-        #folderFilters input[type=checkbox] {
+        #folderFilterList input[type=checkbox] {
             accent-color: var(--accent);
-        }
-
-        #toggleAllBtn {
-            cursor: pointer;
-            color: var(--secondary);
-            margin-bottom: 4px;
-            user-select: none;
-            display: none;
         }
     </style>
 </head>
@@ -378,10 +381,21 @@
             <button class="btn primary" id="chooseBtn">Add folder</button>
             <input id="fileInput" type="file" multiple webkitdirectory directory />
             <button class="btn ghost" id="clearBtn">Clear all</button>
+            <div class="flex-break"></div>
+            <div class="meta" id="info">No images loaded.</div>
+
+            <div class="flex-break"></div>
+            <button class="btn secondary" id="folderToggle">Show Folders</button>
+            <div id="folderPanel">
+                <button class="btn secondary" id="toggleAllBtn">Toggle All Folders</button>
+                <button class="btn ghost" id="invertBtn">Invert Folders</button>
+                <div id="folderFilterList"></div>
+            </div>
         </fieldset>
         <fieldset class="controls-row">
-            <legend>Slideshow</legend>
-            <button class="btn primary" id="startBtn">Start Slideshow</button>
+            <legend>View</legend>
+            <button class="btn primary" id="randomBtn">Random</button>
+            <button class="btn secondary" id="currentBtn">Current</button>
             <div id="shuffleToggleContainer">
                 <span>Shuffle</span>
                 <label class="switch">
@@ -390,20 +404,9 @@
                 </label>
             </div>
         </fieldset>
-        <fieldset class="controls-row">
-            <legend>View</legend>
-            <button class="btn primary" id="randomBtn">Random</button>
-            <button class="btn primary" id="currentBtn">Current</button>
-        </fieldset>
     </div>
 
-    <div id="folderToggle">Hide Folders</div>
-    <div id="folderPanel">
-        <div id="toggleAllBtn">Toggle All Folders</div>
-        <div id="folderFilters"></div>
-    </div>
 
-    <div class="meta" id="info">No images loaded.</div>
     <div id="notice"></div>
     <div id="gallery" aria-live="polite"></div>
 
@@ -422,7 +425,7 @@
             </div>
             <div id="durationControl">
                 <label for="durationInput">Duration (s):</label>
-                <input id="durationInput" type="number" min="0.1" step="0.5" value="2" />
+                <input id="durationInput" type="number" min="0.1" step="0.5" value="2" inputmode="decimal" />
             </div>
         </div>
     </div>
@@ -431,14 +434,14 @@
         const chooseBtn = document.getElementById('chooseBtn');
         const fileInput = document.getElementById('fileInput');
         const clearBtn = document.getElementById('clearBtn');
-        const startBtn = document.getElementById('startBtn');
         const shuffleToggle = document.getElementById('shuffleToggle');
         const randomBtn = document.getElementById('randomBtn');
         const currentBtn = document.getElementById('currentBtn');
         const folderPanel = document.getElementById('folderPanel');
-        const folderFilters = document.getElementById('folderFilters');
+        const folderFilterList = document.getElementById('folderFilterList');
         const folderToggle = document.getElementById('folderToggle');
         const toggleAllBtn = document.getElementById('toggleAllBtn');
+        const invertBtn = document.getElementById('invertBtn');
         const info = document.getElementById('info');
         const notice = document.getElementById('notice');
         const gallery = document.getElementById('gallery');
@@ -454,7 +457,7 @@
         const closeOverlayBtn = document.getElementById('closeOverlay');
 
         let loadedImages = [], activeImages = [], currentIndex = 0,
-            slideshowTimer = null, touchStartX = 0, wakeLock = null;
+            slideshowTimer = null, touchStartX = 0, touchStartY = 0, wakeLock = null;
         let intervalMs = parseInt(durationInput.value, 10) * 1000;
         let uiTimeout = null;
 
@@ -475,8 +478,7 @@
 
         function safeId(prefix, str, idx)
         {
-            return `${prefix}_${idx}_${btoa(encodeURIComponent(str)).replace(/=/g, '')}`;
-
+            return `${prefix}_${idx}_${encodeURIComponent(str).replace(/%/g, '_')}`;
         }
 
         function deepestCommonAncestor(paths)
@@ -533,6 +535,7 @@
             updateInfo();
             renderFolderFilters();
             updateActiveImages();
+            fileInput.value = '';
         }
 
         clearBtn.addEventListener('click', () =>
@@ -540,8 +543,7 @@
             loadedImages.forEach(i => { try { URL.revokeObjectURL(i.url); } catch { } });
             loadedImages = [];
             activeImages = [];
-            folderFilters.innerHTML = '';
-            folderPanel.style.display = 'none';
+            folderFilterList.innerHTML = '';
             gallery.innerHTML = '';
             updateInfo();
             stopSlideshow();
@@ -553,19 +555,23 @@
         function updateInfo()
         {
             info.textContent = `${loadedImages.length} image${loadedImages.length !== 1 ? 's' : ''} loaded.`;
+            const hasFolders = loadedImages.length > 0;
+            folderToggle.style.display = hasFolders ? 'flex' : 'none';
+            if (hasFolders) folderToggle.textContent = 'Show Folders';
+            if (!hasFolders) folderPanel.style.display = 'none';
         }
 
         // Folder Filtering
         folderToggle.addEventListener('click', () =>
         {
-            const invisible = folderPanel.style.display === 'none';
-            folderPanel.style.display = invisible ? 'block' : 'none';
-            folderToggle.textContent = invisible ? 'Hide Folders' : 'Show Folders';
+            const isVisible = folderPanel.style.display === 'block';
+            folderPanel.style.display = isVisible ? 'none' : 'block';
+            folderToggle.textContent = isVisible ? 'Show Folders' : 'Hide Folders';
         });
 
         function renderFolderFilters()
         {
-            folderFilters.innerHTML = '';
+            folderFilterList.innerHTML = '';
             const folders = [...new Set(loadedImages.map(i => i.folder))].sort();
             folders.forEach((folder, idx) =>
             {
@@ -582,24 +588,27 @@
 
                 label.appendChild(input);
                 label.append(` ${folder} (${loadedImages.filter(img => img.folder === folder).length})`);
-                folderFilters.appendChild(label);
+                folderFilterList.appendChild(label);
             });
-            folderPanel.style.display = 'block';
-            folderFilters.style.display = 'flex';
-            toggleAllBtn.style.display = 'block';
         }
 
         toggleAllBtn.addEventListener('click', () =>
         {
-            const checkboxes = folderFilters.querySelectorAll('input');
+            const checkboxes = folderFilterList.querySelectorAll('input');
             const anyUnchecked = [...checkboxes].some(c => !c.checked);
             checkboxes.forEach(c => c.checked = anyUnchecked);
             updateActiveImages();
         });
 
+        invertBtn.addEventListener('click', () =>
+        {
+            folderFilterList.querySelectorAll('input').forEach(c => c.checked = !c.checked);
+            updateActiveImages();
+        });
+
         function applyFolderFilter(srcImages)
         {
-            const activeFolders = [...folderFilters.querySelectorAll('input:checked')].map(i => i.parentNode.dataset.folder);
+            const activeFolders = [...folderFilterList.querySelectorAll('input:checked')].map(i => i.parentNode.dataset.folder);
             return srcImages.filter(img => activeFolders.includes(img.folder));
         }
 
@@ -628,7 +637,6 @@
         }
 
         // View
-        startBtn.addEventListener('click', () => startSlideshow());
         randomBtn.addEventListener('click', () =>
         {
             if (!activeImages.length)
@@ -801,6 +809,14 @@
             }
         });
 
+        durationInput.addEventListener('focus', () =>
+        {
+            setTimeout(() =>
+            {
+                durationInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 400); // delay lets the keyboard finish opening first
+        });
+
         // Keyboard controls
         document.addEventListener('keydown', (e) =>
         {
@@ -819,16 +835,27 @@
         overlay.addEventListener('touchstart', e =>
         {
             touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
         }, { passive: true });
         overlay.addEventListener('touchend', e =>
         {
             const dx = e.changedTouches[0].screenX - touchStartX;
-            if (Math.abs(dx) > 50)
+            const dy = e.changedTouches[0].screenY - touchStartY;
+            if (Math.abs(dy) > Math.abs(dx))
             {
-                const wasPlaying = !!slideshowTimer;
-                stopSlideshow();
-                dx > 0 ? prev() : next();
-                if (wasPlaying) startSlideshow(true);
+                if (Math.abs(dy) > 150)
+                {
+                    closeOverlay();
+                }
+            } else
+            {
+                if (Math.abs(dx) > 50)
+                {
+                    const wasPlaying = !!slideshowTimer;
+                    stopSlideshow();
+                    dx > 0 ? prev() : next();
+                    if (wasPlaying) startSlideshow(true);
+                }
             }
         }, { passive: true });
 

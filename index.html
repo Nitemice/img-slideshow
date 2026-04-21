@@ -115,7 +115,14 @@
             display: none;
         }
 
-        /* Slider toggle styling */
+        /* === Toggle switch === */
+        .toggle-group {
+            display: flex;
+            flex-direction: row-reverse;
+            gap: 6px;
+            align-items: center;
+        }
+
         .switch {
             position: relative;
             display: inline-block;
@@ -150,7 +157,7 @@
             bottom: 3px;
             background: var(--text);
             transition: .4s;
-            border-radius: 50%
+            border-radius: 50%;
         }
 
         input:checked+.slider {
@@ -159,13 +166,6 @@
 
         input:checked+.slider:before {
             transform: translateX(26px);
-        }
-
-        #shuffleToggleContainer {
-            display: flex;
-            flex-direction: row-reverse;
-            gap: 6px;
-            align-items: center;
         }
 
         /* === Gallery === */
@@ -232,21 +232,47 @@
             transition: opacity 0.25s ease;
         }
 
+        /* === Slide box + track === */
         #slideBox {
             position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            /* clips the prev/next slots */
+        }
+
+        /*
+         * Three-slot track: [prev][curr][next]
+         * Track is 300% wide; each slot is 1/3 = 100% of slideBox.
+         * Neutral position: translateX(-slideBox.offsetWidth px) — shows centre slot.
+         * Managed in JS using px for animation precision.
+         */
+        #slideTrack {
+            display: flex;
+            width: 300%;
+            height: 100%;
+            will-change: transform;
+        }
+
+        .slide-slot {
+            width: 33.333%;
+            height: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 100%;
-            height: 100%;
+            flex-shrink: 0;
         }
 
-        #slideImg {
-            max-width: 98%;
-            max-height: 98%;
+        .slide-img {
+            max-width: 96%;
+            max-height: 96%;
+            object-fit: contain;
             border-radius: 8px;
             border: 1px solid var(--accent);
             box-shadow: 0 0 20px rgba(184, 69, 255, 0.4);
+            pointer-events: none;
+            /* touches go to overlay/track */
+            user-select: none;
         }
 
         #overlayCaption {
@@ -322,7 +348,7 @@
             margin-top: 6px;
         }
 
-        @media (max-width:600px) {
+        @media (max-width: 600px) {
             .thumb {
                 width: 120px;
                 height: 90px;
@@ -403,10 +429,17 @@
             <legend>View</legend>
             <button class="btn primary" id="randomBtn">Random</button>
             <button class="btn secondary" id="currentBtn">Current</button>
-            <div id="shuffleToggleContainer">
+            <div class="toggle-group">
                 <span>Shuffle</span>
                 <label class="switch">
                     <input type="checkbox" id="shuffleToggle" checked />
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="toggle-group">
+                <span>Swipe anim</span>
+                <label class="switch">
+                    <input type="checkbox" id="swipeAnimToggle" checked />
                     <span class="slider"></span>
                 </label>
             </div>
@@ -418,9 +451,19 @@
 
     <div id="overlay" role="dialog" aria-modal="true">
         <div id="slideBox">
-            <img id="slideImg" src="" alt="slide image" />
-            <div id="overlayCaption"></div>
+            <div id="slideTrack">
+                <div class="slide-slot">
+                    <img class="slide-img" id="slideImgPrev" src="" alt="previous image" />
+                </div>
+                <div class="slide-slot">
+                    <img class="slide-img" id="slideImgCurr" src="" alt="current image" />
+                </div>
+                <div class="slide-slot">
+                    <img class="slide-img" id="slideImgNext" src="" alt="next image" />
+                </div>
+            </div>
 
+            <div id="overlayCaption"></div>
             <button id="fullscreenBtn" class="btn secondary">Fullscreen</button>
             <button id="closeOverlay" class="btn ghost">Close</button>
 
@@ -444,6 +487,7 @@
         const fileInput = document.getElementById('fileInput');
         const clearBtn = document.getElementById('clearBtn');
         const shuffleToggle = document.getElementById('shuffleToggle');
+        const swipeAnimToggle = document.getElementById('swipeAnimToggle');
         const randomBtn = document.getElementById('randomBtn');
         const currentBtn = document.getElementById('currentBtn');
         const folderPanel = document.getElementById('folderPanel');
@@ -455,7 +499,11 @@
         const notice = document.getElementById('notice');
         const gallery = document.getElementById('gallery');
         const overlay = document.getElementById('overlay');
-        const slideImg = document.getElementById('slideImg');
+        const slideBox = document.getElementById('slideBox');
+        const slideTrack = document.getElementById('slideTrack');
+        const slideImgPrev = document.getElementById('slideImgPrev');
+        const slideImgCurr = document.getElementById('slideImgCurr');
+        const slideImgNext = document.getElementById('slideImgNext');
         const overlayCaption = document.getElementById('overlayCaption');
         const playPauseBtn = document.getElementById('playPauseBtn');
         const prevBtn = document.getElementById('prevBtn');
@@ -488,7 +536,10 @@
             intervalMs: parseFloat(durationInput.value) * 1000,
             slideshowTimer: null,
 
-            // Misc
+            // Swipe animation
+            swipeAnimations: true,
+
+            // Transient — not used by render()
             wakeLock: null,
             uiTimeout: null,
             touchStartX: 0,
@@ -498,6 +549,10 @@
         // Preload cache for smoother transitions (not part of render state)
         const preloadCache = new Map();
         const MAX_PRELOAD_CACHE = 25;
+
+        // Swipe gesture locals — transient, never rendered
+        let swipeLocked = null;    // null | 'h' | 'v', set per gesture
+        let swipeInFlight = false; // true while a snap transition is running
 
         // ============================================================
         // Pure helpers
@@ -559,13 +614,13 @@
         }
 
         // ============================================================
-        // Render — the single function that writes state → DOM.
-        // Grouped by concern so it's easy to find what drives what.
+        // Render — sole writer to the DOM
         // ============================================================
         function render()
         {
             const { loadedImages, folders, foldersVisible, activeImages,
-                overlayOpen, currentIndex, shuffled, slideshowTimer } = state;
+                overlayOpen, currentIndex, shuffled, slideshowTimer,
+                swipeAnimations } = state;
 
             // --- Info bar ---
             info.textContent = `${loadedImages.length} image${loadedImages.length !== 1 ? 's' : ''} loaded.`;
@@ -575,16 +630,13 @@
             folderToggle.style.display = hasFolders ? 'flex' : 'none';
             folderToggle.textContent = foldersVisible ? 'Hide Folders' : 'Show Folders';
 
-            // --- Folder panel visibility ---
+            // --- Folder panel ---
             folderPanel.style.display = (hasFolders && foldersVisible) ? 'block' : 'none';
 
-            // --- Folder filter checkboxes ---
-            // Rebuild list only when folder keys have changed to avoid thrashing.
+            // --- Folder filter checkboxes (rebuild only when set of folders changes) ---
             const currentFolderKeys = Object.keys(folders).sort();
             const renderedFolderKeys = [...folderFilterList.querySelectorAll('label')].map(l => l.dataset.folder).sort();
-            const folderListChanged = currentFolderKeys.join('\0') !== renderedFolderKeys.join('\0');
-
-            if (folderListChanged)
+            if (currentFolderKeys.join('\0') !== renderedFolderKeys.join('\0'))
             {
                 folderFilterList.innerHTML = '';
                 currentFolderKeys.forEach((folder, idx) =>
@@ -611,57 +663,80 @@
                 });
             }
 
-            // Always sync checkbox checked state from state.folders
+            // Sync checkbox checked states from state.folders
             folderFilterList.querySelectorAll('label').forEach(label =>
             {
-                const input = label.querySelector('input');
-                input.checked = folders[label.dataset.folder] !== false;
+                label.querySelector('input').checked = folders[label.dataset.folder] !== false;
             });
 
-            // --- Gallery ---
-            gallery.innerHTML = '';
-            activeImages.forEach((it, i) =>
+            // --- Gallery (rebuild only when activeImages changes) ---
+            const activeKeys = activeImages.map(it => it.url).join('\0');
+            const renderedKeys = [...gallery.querySelectorAll('img')].map(i => i.src).join('\0');
+            if (activeKeys !== renderedKeys)
             {
-                const d = document.createElement('div');
-                d.className = 'thumb';
-                const img = document.createElement('img');
-                img.src = it.url;
-                img.alt = it.name;
-                img.loading = 'lazy';
-                d.appendChild(img);
-                d.addEventListener('click', () =>
+                gallery.innerHTML = '';
+                activeImages.forEach((it, i) =>
                 {
-                    state.overlayOpen = true;
-                    state.currentIndex = i;
-                    render();
+                    const d = document.createElement('div');
+                    d.className = 'thumb';
+                    const img = document.createElement('img');
+                    img.src = it.url;
+                    img.alt = it.name;
+                    img.loading = 'lazy';
+                    d.appendChild(img);
+                    d.addEventListener('click', () =>
+                    {
+                        state.overlayOpen = true;
+                        state.currentIndex = i;
+                        render();
+                    });
+                    gallery.appendChild(d);
                 });
-                gallery.appendChild(d);
-            });
+            }
 
-            // --- Shuffle toggle ---
+            // --- Toggles ---
             shuffleToggle.checked = shuffled;
+            swipeAnimToggle.checked = swipeAnimations;
 
-            // --- Overlay open/close ---
+            // --- Overlay ---
             overlay.classList.toggle('open', overlayOpen);
 
             if (overlayOpen && activeImages.length)
             {
-                const it = activeImages[currentIndex];
-                slideImg.src = it.url;
-                overlayCaption.textContent = `${it.folder} / ${it.name}`;
+                const n = activeImages.length;
+                const curr = activeImages[currentIndex];
+                const prev = activeImages[(currentIndex - 1 + n) % n];
+                const next = activeImages[(currentIndex + 1) % n];
+
+                slideImgCurr.src = curr.url;
+                slideImgCurr.alt = curr.name;
+                slideImgPrev.src = prev.url;
+                slideImgNext.src = next.url;
+
+                overlayCaption.textContent = `${curr.folder} / ${curr.name}`;
+
+                // Reset track to centre — skip if a snap animation is in progress
+                if (!swipeInFlight)
+                {
+                    slideTrack.style.transition = 'none';
+                    slideTrack.style.transform = `translateX(${-slideBox.offsetWidth}px)`;
+                }
+
                 preloadNext();
             }
             else if (!overlayOpen)
             {
-                slideImg.src = '';
+                slideImgCurr.src = '';
+                slideImgPrev.src = '';
+                slideImgNext.src = '';
                 overlayCaption.textContent = '';
+                // Reset track for next open
+                slideTrack.style.transition = 'none';
+                slideTrack.style.transform = `translateX(${-slideBox.offsetWidth}px)`;
             }
 
-            // --- Play/pause button label ---
+            // --- Play/pause label ---
             playPauseBtn.textContent = slideshowTimer ? '⏸ Pause' : '▶ Play';
-
-            console.log(state);
-            
         }
 
         // ============================================================
@@ -754,12 +829,18 @@
         });
 
         // ============================================================
-        // Shuffle
+        // Shuffle + swipe anim toggles
         // ============================================================
         shuffleToggle.addEventListener('change', () =>
         {
             state.shuffled = shuffleToggle.checked;
             state.activeImages = buildActiveImages();
+            render();
+        });
+
+        swipeAnimToggle.addEventListener('change', () =>
+        {
+            state.swipeAnimations = swipeAnimToggle.checked;
             render();
         });
 
@@ -904,22 +985,91 @@
         {
             state.touchStartX = e.changedTouches[0].screenX;
             state.touchStartY = e.changedTouches[0].screenY;
+            swipeLocked = null; // reset direction lock for each new gesture
+        }, { passive: true });
+
+        overlay.addEventListener('touchmove', e =>
+        {
+            if (!state.swipeAnimations || swipeInFlight) return;
+
+            const dx = e.changedTouches[0].screenX - state.touchStartX;
+            const dy = e.changedTouches[0].screenY - state.touchStartY;
+
+            // Lock swipe axis on first meaningful movement to avoid diagonal drift
+            if (!swipeLocked)
+            {
+                if (Math.abs(dx) > Math.abs(dy) + 4) swipeLocked = 'h';
+                else if (Math.abs(dy) > Math.abs(dx) + 4) swipeLocked = 'v';
+            }
+
+            if (swipeLocked === 'h')
+            {
+                slideTrack.style.transition = 'none';
+                slideTrack.style.transform = `translateX(${-slideBox.offsetWidth + dx}px)`;
+            }
         }, { passive: true });
 
         overlay.addEventListener('touchend', e =>
         {
             const dx = e.changedTouches[0].screenX - state.touchStartX;
             const dy = e.changedTouches[0].screenY - state.touchStartY;
-            if (Math.abs(dy) > Math.abs(dx))
+
+            if (state.swipeAnimations && swipeLocked === 'h')
             {
-                if (Math.abs(dy) > 150) closeOverlay();
-            }
-            else if (Math.abs(dx) > 50)
-            {
+                // --- Animated swipe path ---
+                const W = slideBox.offsetWidth;
+                const threshold = W * 0.25; // 25% of screen width to commit
                 const wasPlaying = !!state.slideshowTimer;
-                stopSlideshow();
-                dx > 0 ? prev() : next();
-                if (wasPlaying) startSlideshow(true);
+
+                if (dx > threshold)
+                {
+                    // Committed left-to-right swipe → go to prev
+                    swipeInFlight = true;
+                    slideTrack.style.transition = 'transform 0.3s ease';
+                    slideTrack.style.transform = 'translateX(0)';
+                    slideTrack.addEventListener('transitionend', () =>
+                    {
+                        swipeInFlight = false;
+                        stopSlideshow();
+                        prev(); // calls render(), which resets track to centre
+                        if (wasPlaying) startSlideshow(true);
+                    }, { once: true });
+                }
+                else if (dx < -threshold)
+                {
+                    // Committed right-to-left swipe → go to next
+                    swipeInFlight = true;
+                    slideTrack.style.transition = 'transform 0.3s ease';
+                    slideTrack.style.transform = `translateX(${-2 * W}px)`;
+                    slideTrack.addEventListener('transitionend', () =>
+                    {
+                        swipeInFlight = false;
+                        stopSlideshow();
+                        next();
+                        if (wasPlaying) startSlideshow(true);
+                    }, { once: true });
+                }
+                else
+                {
+                    // Not far enough — spring back to centre
+                    slideTrack.style.transition = 'transform 0.3s ease';
+                    slideTrack.style.transform = `translateX(${-W}px)`;
+                }
+            }
+            else
+            {
+                // --- Non-animated fallback (anim off, or vertical swipe) ---
+                if (Math.abs(dy) > Math.abs(dx))
+                {
+                    if (Math.abs(dy) > 150) closeOverlay();
+                }
+                else if (Math.abs(dx) > 50)
+                {
+                    const wasPlaying = !!state.slideshowTimer;
+                    stopSlideshow();
+                    dx > 0 ? prev() : next();
+                    if (wasPlaying) startSlideshow(true);
+                }
             }
         }, { passive: true });
 
@@ -928,6 +1078,7 @@
         // ============================================================
         async function requestWakeLock()
         {
+            notice.textContent = '';
             if (!('wakeLock' in navigator))
             {
                 notice.textContent = 'Wake Lock not supported. Run via localhost/HTTPS for screen to stay on.';
@@ -937,7 +1088,6 @@
             {
                 state.wakeLock = await navigator.wakeLock.request('screen');
                 state.wakeLock.addEventListener('release', () => console.log('WakeLock released'));
-                notice.textContent = '';
             }
             catch (err)
             {

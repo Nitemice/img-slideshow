@@ -334,11 +334,11 @@
         }
 
         #fullscreenBtn {
-            right: 10px;
+            left: 10px;
         }
 
         #closeOverlay {
-            left: 10px;
+            right: 10px;
         }
 
         /* === Misc === */
@@ -453,13 +453,13 @@
         <div id="slideBox">
             <div id="slideTrack">
                 <div class="slide-slot">
-                    <img class="slide-img" id="slideImgPrev" src="" alt="previous image" />
+                    <img class="slide-img" id="slideImgPrev" src="" alt="previous image" draggable="false" />
                 </div>
                 <div class="slide-slot">
-                    <img class="slide-img" id="slideImgCurr" src="" alt="current image" />
+                    <img class="slide-img" id="slideImgCurr" src="" alt="current image" draggable="false" />
                 </div>
                 <div class="slide-slot">
-                    <img class="slide-img" id="slideImgNext" src="" alt="next image" />
+                    <img class="slide-img" id="slideImgNext" src="" alt="next image" draggable="false" />
                 </div>
             </div>
 
@@ -553,6 +553,7 @@
         // Swipe gesture locals — transient, never rendered
         let swipeLocked = null;    // null | 'h' | 'v', set per gesture
         let swipeInFlight = false; // true while a snap transition is running
+        let didDrag = false;
 
         // ============================================================
         // Pure helpers
@@ -979,23 +980,32 @@
         // ============================================================
         // Touch controls
         // ============================================================
-        overlay.addEventListener('click', e => { if (e.target === overlay) closeOverlay(); });
-
-        overlay.addEventListener('touchstart', e =>
+        overlay.addEventListener('click', e =>
         {
-            state.touchStartX = e.changedTouches[0].screenX;
-            state.touchStartY = e.changedTouches[0].screenY;
-            swipeLocked = null; // reset direction lock for each new gesture
-        }, { passive: true });
+            if (didDrag) { didDrag = false; return; }
+            if (e.target === overlay) closeOverlay();
+        });
 
-        overlay.addEventListener('touchmove', e =>
+        overlay.addEventListener('pointerdown', e =>
         {
+            if (e.button !== 0 && e.pointerType === 'mouse') return;
+            if (e.target.closest('button, input, label, a')) return; // let controls handle normally
+            e.preventDefault(); // stops native image drag taking over
+            state.touchStartX = e.screenX;
+            state.touchStartY = e.screenY;
+            swipeLocked = null;
+            overlay.setPointerCapture(e.pointerId); // keeps events coming even if pointer leaves
+            slideBox.classList.add('dragging');
+        });
+
+        overlay.addEventListener('pointermove', e =>
+        {
+            if (!overlay.hasPointerCapture(e.pointerId)) return;
             if (!state.swipeAnimations || swipeInFlight) return;
 
-            const dx = e.changedTouches[0].screenX - state.touchStartX;
-            const dy = e.changedTouches[0].screenY - state.touchStartY;
+            const dx = e.screenX - state.touchStartX;
+            const dy = e.screenY - state.touchStartY;
 
-            // Lock swipe axis on first meaningful movement to avoid diagonal drift
             if (!swipeLocked)
             {
                 if (Math.abs(dx) > Math.abs(dy) + 4) swipeLocked = 'h';
@@ -1007,12 +1017,19 @@
                 slideTrack.style.transition = 'none';
                 slideTrack.style.transform = `translateX(${-slideBox.offsetWidth + dx}px)`;
             }
-        }, { passive: true });
+        });
 
-        overlay.addEventListener('touchend', e =>
+        overlay.addEventListener('pointerup', e =>
         {
-            const dx = e.changedTouches[0].screenX - state.touchStartX;
-            const dy = e.changedTouches[0].screenY - state.touchStartY;
+            if (!overlay.hasPointerCapture(e.pointerId)) return;
+            overlay.releasePointerCapture(e.pointerId);
+            slideBox.classList.remove('dragging');
+
+            const dx = e.screenX - state.touchStartX;
+            const dy = e.screenY - state.touchStartY;
+
+            // Consider it a drag if the pointer moved more than a few pixels
+            didDrag = Math.abs(dx) > 8 || Math.abs(dy) > 8;
 
             if (state.swipeAnimations && swipeLocked === 'h')
             {
@@ -1056,22 +1073,18 @@
                     slideTrack.style.transform = `translateX(${-W}px)`;
                 }
             }
-            else
+            else if (!state.swipeAnimations && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50)
             {
-                // --- Non-animated fallback (anim off, or vertical swipe) ---
-                if (Math.abs(dy) > Math.abs(dx))
-                {
-                    if (Math.abs(dy) > 150) closeOverlay();
-                }
-                else if (Math.abs(dx) > 50)
-                {
-                    const wasPlaying = !!state.slideshowTimer;
-                    stopSlideshow();
-                    dx > 0 ? prev() : next();
-                    if (wasPlaying) startSlideshow(true);
-                }
+                const wasPlaying = !!state.slideshowTimer;
+                stopSlideshow();
+                dx > 0 ? prev() : next();
+                if (wasPlaying) startSlideshow(true);
             }
-        }, { passive: true });
+            else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 150)
+            {
+                closeOverlay();
+            }
+        });
 
         // ============================================================
         // Wake Lock

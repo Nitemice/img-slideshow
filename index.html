@@ -111,6 +111,22 @@
             color: #000;
         }
 
+        /* Icon-only variant — compact square, centres SVG or glyph */
+        .btn.icon-btn {
+            padding: 8px 10px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 36px;
+            font-size: 15px;
+        }
+
+        .btn.icon-btn svg {
+            display: block;
+            pointer-events: none;
+        }
+
         input[type=file] {
             display: none;
         }
@@ -239,6 +255,11 @@
             height: 100%;
             overflow: hidden;
             /* clips the prev/next slots */
+            cursor: grab;
+        }
+
+        #slideBox.dragging {
+            cursor: grabbing;
         }
 
         /*
@@ -464,8 +485,10 @@
             </div>
 
             <div id="overlayCaption"></div>
-            <button id="fullscreenBtn" class="btn secondary">Fullscreen</button>
-            <button id="closeOverlay" class="btn ghost">Close</button>
+
+            <!-- Icon buttons: content set by JS so fullscreenchange can swap the SVG -->
+            <button id="fullscreenBtn" class="btn secondary icon-btn" aria-label="Fullscreen" title="Fullscreen"></button>
+            <button id="closeOverlay" class="btn ghost icon-btn" aria-label="Close" title="Close">✕</button>
 
             <div id="bottomControls">
                 <button id="prevBtn" class="btn secondary" aria-label="Previous slide">⏮ Prev</button>
@@ -481,36 +504,45 @@
 
     <script>
         // ============================================================
+        // SVG icon strings — used by fullscreenBtn and swapped on fullscreenchange
+        // ============================================================
+        const SVG_EXPAND   = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 5V1h4M9 1h4v4M13 9v4H9M5 13H1V9"/></svg>`;
+        const SVG_COMPRESS = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 1v4H1M13 5h-4V1M9 13v-4h4M1 9h4v4"/></svg>`;
+
+        // ============================================================
         // DOM refs
         // ============================================================
-        const chooseBtn = document.getElementById('chooseBtn');
-        const fileInput = document.getElementById('fileInput');
-        const clearBtn = document.getElementById('clearBtn');
-        const shuffleToggle = document.getElementById('shuffleToggle');
+        const chooseBtn      = document.getElementById('chooseBtn');
+        const fileInput      = document.getElementById('fileInput');
+        const clearBtn       = document.getElementById('clearBtn');
+        const shuffleToggle  = document.getElementById('shuffleToggle');
         const swipeAnimToggle = document.getElementById('swipeAnimToggle');
-        const randomBtn = document.getElementById('randomBtn');
-        const currentBtn = document.getElementById('currentBtn');
-        const folderPanel = document.getElementById('folderPanel');
+        const randomBtn      = document.getElementById('randomBtn');
+        const currentBtn     = document.getElementById('currentBtn');
+        const folderPanel    = document.getElementById('folderPanel');
         const folderFilterList = document.getElementById('folderFilterList');
-        const folderToggle = document.getElementById('folderToggle');
-        const toggleAllBtn = document.getElementById('toggleAllBtn');
-        const invertBtn = document.getElementById('invertBtn');
-        const info = document.getElementById('info');
-        const notice = document.getElementById('notice');
-        const gallery = document.getElementById('gallery');
-        const overlay = document.getElementById('overlay');
-        const slideBox = document.getElementById('slideBox');
-        const slideTrack = document.getElementById('slideTrack');
-        const slideImgPrev = document.getElementById('slideImgPrev');
-        const slideImgCurr = document.getElementById('slideImgCurr');
-        const slideImgNext = document.getElementById('slideImgNext');
+        const folderToggle   = document.getElementById('folderToggle');
+        const toggleAllBtn   = document.getElementById('toggleAllBtn');
+        const invertBtn      = document.getElementById('invertBtn');
+        const info           = document.getElementById('info');
+        const notice         = document.getElementById('notice');
+        const gallery        = document.getElementById('gallery');
+        const overlay        = document.getElementById('overlay');
+        const slideBox       = document.getElementById('slideBox');
+        const slideTrack     = document.getElementById('slideTrack');
+        const slideImgPrev   = document.getElementById('slideImgPrev');
+        const slideImgCurr   = document.getElementById('slideImgCurr');
+        const slideImgNext   = document.getElementById('slideImgNext');
         const overlayCaption = document.getElementById('overlayCaption');
-        const playPauseBtn = document.getElementById('playPauseBtn');
-        const prevBtn = document.getElementById('prevBtn');
-        const nextBtn = document.getElementById('nextBtn');
-        const durationInput = document.getElementById('durationInput');
-        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const playPauseBtn   = document.getElementById('playPauseBtn');
+        const prevBtn        = document.getElementById('prevBtn');
+        const nextBtn        = document.getElementById('nextBtn');
+        const durationInput  = document.getElementById('durationInput');
+        const fullscreenBtn  = document.getElementById('fullscreenBtn');
         const closeOverlayBtn = document.getElementById('closeOverlay');
+
+        // Set initial fullscreen button icon
+        fullscreenBtn.innerHTML = SVG_EXPAND;
 
         // ============================================================
         // State
@@ -620,8 +652,8 @@
         function render()
         {
             const { loadedImages, folders, foldersVisible, activeImages,
-                overlayOpen, currentIndex, shuffled, slideshowTimer,
-                swipeAnimations } = state;
+                    overlayOpen, currentIndex, shuffled, slideshowTimer,
+                    swipeAnimations } = state;
 
             // --- Info bar ---
             info.textContent = `${loadedImages.length} image${loadedImages.length !== 1 ? 's' : ''} loaded.`;
@@ -948,7 +980,9 @@
 
         document.addEventListener('fullscreenchange', () =>
         {
-            fullscreenBtn.textContent = document.fullscreenElement ? 'Exit Fullscreen' : 'Fullscreen';
+            const isFS = !!document.fullscreenElement;
+            fullscreenBtn.innerHTML = isFS ? SVG_COMPRESS : SVG_EXPAND;
+            fullscreenBtn.title = isFS ? 'Exit fullscreen' : 'Fullscreen';
         });
 
         // ============================================================
@@ -973,12 +1007,12 @@
             if (!state.overlayOpen) return;
             if (e.key === 'Escape') closeOverlay();
             if (e.key === 'ArrowRight') { stopSlideshow(); next(); }
-            if (e.key === 'ArrowLeft') { stopSlideshow(); prev(); }
-            if (e.key === ' ') { e.preventDefault(); togglePlayPause(); }
+            if (e.key === 'ArrowLeft')  { stopSlideshow(); prev(); }
+            if (e.key === ' ')          { e.preventDefault(); togglePlayPause(); }
         });
 
         // ============================================================
-        // Touch controls
+        // Pointer controls (handles both mouse and touch uniformly)
         // ============================================================
         overlay.addEventListener('click', e =>
         {
@@ -1034,55 +1068,55 @@
             if (state.swipeAnimations && swipeLocked === 'h')
             {
                 // --- Animated swipe path ---
-                const W = slideBox.offsetWidth;
+                        const W = slideBox.offsetWidth;
                 const threshold = W * 0.25; // 25% of screen width to commit
-                const wasPlaying = !!state.slideshowTimer;
+                        const wasPlaying = !!state.slideshowTimer;
 
-                if (dx > threshold)
-                {
+                        if (dx > threshold)
+                        {
                     // Committed left-to-right swipe → go to prev
-                    swipeInFlight = true;
-                    slideTrack.style.transition = 'transform 0.3s ease';
-                    slideTrack.style.transform = 'translateX(0)';
-                    slideTrack.addEventListener('transitionend', () =>
-                    {
-                        swipeInFlight = false;
-                        stopSlideshow();
+                            swipeInFlight = true;
+                            slideTrack.style.transition = 'transform 0.3s ease';
+                            slideTrack.style.transform = 'translateX(0)';
+                            slideTrack.addEventListener('transitionend', () =>
+                            {
+                                swipeInFlight = false;
+                                stopSlideshow();
                         prev(); // calls render(), which resets track to centre
-                        if (wasPlaying) startSlideshow(true);
-                    }, { once: true });
-                }
-                else if (dx < -threshold)
-                {
+                                if (wasPlaying) startSlideshow(true);
+                            }, { once: true });
+                        }
+                        else if (dx < -threshold)
+                        {
                     // Committed right-to-left swipe → go to next
-                    swipeInFlight = true;
-                    slideTrack.style.transition = 'transform 0.3s ease';
-                    slideTrack.style.transform = `translateX(${-2 * W}px)`;
-                    slideTrack.addEventListener('transitionend', () =>
-                    {
-                        swipeInFlight = false;
-                        stopSlideshow();
-                        next();
-                        if (wasPlaying) startSlideshow(true);
-                    }, { once: true });
-                }
-                else
-                {
-                    // Not far enough — spring back to centre
-                    slideTrack.style.transition = 'transform 0.3s ease';
-                    slideTrack.style.transform = `translateX(${-W}px)`;
-                }
-            }
+                            swipeInFlight = true;
+                            slideTrack.style.transition = 'transform 0.3s ease';
+                            slideTrack.style.transform = `translateX(${-2 * W}px)`;
+                            slideTrack.addEventListener('transitionend', () =>
+                            {
+                                swipeInFlight = false;
+                                stopSlideshow();
+                                next();
+                                if (wasPlaying) startSlideshow(true);
+                            }, { once: true });
+                        }
+                        else
+                        {
+                            // Not far enough — spring back to centre
+                            slideTrack.style.transition = 'transform 0.3s ease';
+                            slideTrack.style.transform = `translateX(${-W}px)`;
+                        }
+                    }
             else if (!state.swipeAnimations && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50)
-            {
-                const wasPlaying = !!state.slideshowTimer;
-                stopSlideshow();
-                dx > 0 ? prev() : next();
-                if (wasPlaying) startSlideshow(true);
-            }
+                    {
+                        const wasPlaying = !!state.slideshowTimer;
+                        stopSlideshow();
+                        dx > 0 ? prev() : next();
+                        if (wasPlaying) startSlideshow(true);
+                    }
             else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 150)
-            {
-                closeOverlay();
+                        {
+                            closeOverlay();
             }
         });
 

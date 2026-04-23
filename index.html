@@ -728,9 +728,17 @@
             // --- Folder filter checkboxes (rebuild only when set of folders changes) ---
             const currentFolderKeys = Object.keys(folders).sort();
             const renderedFolderKeys = [...folderFilterList.querySelectorAll('label')].map(l => l.dataset.folder).sort();
+
             if (currentFolderKeys.join('\0') !== renderedFolderKeys.join('\0'))
             {
                 folderFilterList.innerHTML = '';
+
+                const folderCounts = {};
+                loadedImages.forEach(img =>
+                {
+                    folderCounts[img.folder] = (folderCounts[img.folder] || 0) + 1;
+                });
+
                 currentFolderKeys.forEach((folder, idx) =>
                 {
                     const inputId = safeId('folder', folder, idx);
@@ -749,8 +757,7 @@
                     });
 
                     label.appendChild(input);
-                    const count = loadedImages.filter(img => img.folder === folder).length;
-                    label.append(` ${folder} (${count})`);
+                    label.append(` ${folder} (${folderCounts[folder]})`);
                     folderFilterList.appendChild(label);
                 });
             }
@@ -810,7 +817,8 @@
                 slideImgPrev.src = prev.url;
                 slideImgNext.src = next.url;
 
-                overlayCaption.textContent = `${curr.folder} / ${curr.name}`;
+                const folderDisplay = curr.folder === '(root)' ? '' : `${curr.folder} / `;
+                overlayCaption.textContent = `${folderDisplay}${curr.name}`;
 
                 // Reset track to centre — skip if a snap animation is in progress
                 if (!swipeInFlight)
@@ -852,6 +860,19 @@
                 const img = new Image();
                 img.src = nextUrl;
                 preloadCache.set(nextUrl, img);
+            }
+
+            const n = state.activeImages.length;
+            const prevUrl = state.activeImages[(state.currentIndex - 1 + n) % n]?.url;
+            if (prevUrl && !preloadCache.has(prevUrl))
+            {
+                if (preloadCache.size >= MAX_PRELOAD_CACHE)
+                {
+                    preloadCache.delete(preloadCache.keys().next().value);
+                }
+                const img = new Image();
+                img.src = prevUrl;
+                preloadCache.set(prevUrl, img);
             }
         }
 
@@ -1206,6 +1227,7 @@
         // ============================================================
         async function requestWakeLock()
         {
+            if (state.wakeLock) return; // already held
             notice.textContent = '';
             if (!('wakeLock' in navigator))
             {

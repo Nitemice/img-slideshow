@@ -230,20 +230,20 @@
         }
 
         #overlay:not(.show-ui) #bottomControls,
-        #overlay:not(.show-ui) #durationControl,
+        #overlay:not(.show-ui) #overlaySettings,
         #overlay:not(.show-ui) #overlayCaption {
             opacity: 0;
             pointer-events: none;
         }
 
         #overlay.show-ui #bottomControls,
-        #overlay.show-ui #durationControl,
+        #overlay.show-ui #overlaySettings,
         #overlay.show-ui #overlayCaption {
             opacity: 1;
         }
 
         #bottomControls,
-        #durationControl,
+        #overlaySettings,
         #overlayCaption {
             transition: opacity 0.25s ease;
         }
@@ -331,20 +331,54 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
         }
 
-        #durationControl {
+        /* === Overlay settings panel === */
+        #overlaySettings {
             position: absolute;
-            bottom: 70px;
+            top: 10px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(29, 29, 34, 0.85);
-            padding: 6px 10px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-            color: var(--text);
             display: flex;
+            flex-direction: column;
             align-items: center;
             gap: 6px;
+            z-index: 10;
+        }
+
+        #overlaySettingsBtn {
+            /* Compact icon button — no wide padding needed */
+            padding: 6px 10px;
+            font-size: 16px;
+            line-height: 1;
+        }
+
+        #overlaySettingsBody {
+            background: rgba(29, 29, 34, 0.92);
+            padding: 10px 14px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            white-space: nowrap;
+        }
+
+        #overlaySettingsBody label {
+            color: var(--text);
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #overlaySettingsBody input[type=number] {
+            width: 56px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            padding: 3px 6px;
+            font-size: 13px;
         }
 
         #fullscreenBtn,
@@ -457,8 +491,11 @@
                     <span class="slider"></span>
                 </label>
             </div>
+        </fieldset>
+        <fieldset class="controls-row">
+            <legend>Controls</legend>
             <div class="toggle-group">
-                <span>Swipe anim</span>
+                <span>Swipe Animations</span>
                 <label class="switch">
                     <input type="checkbox" id="swipeAnimToggle" checked />
                     <span class="slider"></span>
@@ -487,7 +524,25 @@
             <div id="overlayCaption"></div>
 
             <!-- Icon buttons: content set by JS so fullscreenchange can swap the SVG -->
-            <button id="fullscreenBtn" class="btn secondary icon-btn" aria-label="Fullscreen" title="Fullscreen"></button>
+            <button id="fullscreenBtn" class="btn secondary icon-btn" aria-label="Fullscreen"
+                title="Fullscreen"></button>
+            <div id="overlaySettings">
+                <button id="overlaySettingsBtn" class="btn secondary icon-btn" aria-label="Toggle settings">⚙</button>
+                <div id="overlaySettingsBody">
+                    <label for="overlayDurationInput">
+                        Duration (s):
+                        <input id="overlayDurationInput" type="number" min="0.1" step="0.5" value="2"
+                            inputmode="decimal" />
+                    </label>
+                    <div class="toggle-group">
+                        <span>Swipe Animations</span>
+                        <label class="switch">
+                            <input type="checkbox" id="overlaySwipeAnimToggle" checked />
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
             <button id="closeOverlay" class="btn ghost icon-btn" aria-label="Close" title="Close">✕</button>
 
             <div id="bottomControls">
@@ -495,10 +550,7 @@
                 <button id="playPauseBtn" class="btn" aria-label="Play or pause slideshow">▶ Play</button>
                 <button id="nextBtn" class="btn secondary" aria-label="Next slide">Next ⏭</button>
             </div>
-            <div id="durationControl">
-                <label for="durationInput">Duration (s):</label>
-                <input id="durationInput" type="number" min="0.1" step="0.5" value="2" inputmode="decimal" />
-            </div>
+
         </div>
     </div>
 
@@ -506,40 +558,44 @@
         // ============================================================
         // SVG icon strings — used by fullscreenBtn and swapped on fullscreenchange
         // ============================================================
-        const SVG_EXPAND   = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 5V1h4M9 1h4v4M13 9v4H9M5 13H1V9"/></svg>`;
+        const SVG_EXPAND = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 5V1h4M9 1h4v4M13 9v4H9M5 13H1V9"/></svg>`;
         const SVG_COMPRESS = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 1v4H1M13 5h-4V1M9 13v-4h4M1 9h4v4"/></svg>`;
 
         // ============================================================
         // DOM refs
         // ============================================================
-        const chooseBtn      = document.getElementById('chooseBtn');
-        const fileInput      = document.getElementById('fileInput');
-        const clearBtn       = document.getElementById('clearBtn');
-        const shuffleToggle  = document.getElementById('shuffleToggle');
+        const chooseBtn = document.getElementById('chooseBtn');
+        const fileInput = document.getElementById('fileInput');
+        const clearBtn = document.getElementById('clearBtn');
+        const shuffleToggle = document.getElementById('shuffleToggle');
         const swipeAnimToggle = document.getElementById('swipeAnimToggle');
-        const randomBtn      = document.getElementById('randomBtn');
-        const currentBtn     = document.getElementById('currentBtn');
-        const folderPanel    = document.getElementById('folderPanel');
+        const randomBtn = document.getElementById('randomBtn');
+        const currentBtn = document.getElementById('currentBtn');
+        const folderPanel = document.getElementById('folderPanel');
         const folderFilterList = document.getElementById('folderFilterList');
-        const folderToggle   = document.getElementById('folderToggle');
-        const toggleAllBtn   = document.getElementById('toggleAllBtn');
-        const invertBtn      = document.getElementById('invertBtn');
-        const info           = document.getElementById('info');
-        const notice         = document.getElementById('notice');
-        const gallery        = document.getElementById('gallery');
-        const overlay        = document.getElementById('overlay');
-        const slideBox       = document.getElementById('slideBox');
-        const slideTrack     = document.getElementById('slideTrack');
-        const slideImgPrev   = document.getElementById('slideImgPrev');
-        const slideImgCurr   = document.getElementById('slideImgCurr');
-        const slideImgNext   = document.getElementById('slideImgNext');
+        const folderToggle = document.getElementById('folderToggle');
+        const toggleAllBtn = document.getElementById('toggleAllBtn');
+        const invertBtn = document.getElementById('invertBtn');
+        const info = document.getElementById('info');
+        const notice = document.getElementById('notice');
+        const gallery = document.getElementById('gallery');
+        const overlay = document.getElementById('overlay');
+        const slideBox = document.getElementById('slideBox');
+        const slideTrack = document.getElementById('slideTrack');
+        const slideImgPrev = document.getElementById('slideImgPrev');
+        const slideImgCurr = document.getElementById('slideImgCurr');
+        const slideImgNext = document.getElementById('slideImgNext');
         const overlayCaption = document.getElementById('overlayCaption');
-        const playPauseBtn   = document.getElementById('playPauseBtn');
-        const prevBtn        = document.getElementById('prevBtn');
-        const nextBtn        = document.getElementById('nextBtn');
-        const durationInput  = document.getElementById('durationInput');
-        const fullscreenBtn  = document.getElementById('fullscreenBtn');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
         const closeOverlayBtn = document.getElementById('closeOverlay');
+        // Overlay settings panel
+        const overlaySettingsBtn = document.getElementById('overlaySettingsBtn');
+        const overlaySettingsBody = document.getElementById('overlaySettingsBody');
+        const overlayDurationInput = document.getElementById('overlayDurationInput');
+        const overlaySwipeAnimToggle = document.getElementById('overlaySwipeAnimToggle');
 
         // Set initial fullscreen button icon
         fullscreenBtn.innerHTML = SVG_EXPAND;
@@ -563,9 +619,12 @@
             overlayOpen: false,
             currentIndex: 0,
 
+            // Overlay settings panel
+            overlaySettingsOpen: false,
+
             // Slideshow
             shuffled: true,
-            intervalMs: parseFloat(durationInput.value) * 1000,
+            intervalMs: parseFloat(overlayDurationInput.value) * 1000,
             slideshowTimer: null,
 
             // Swipe animation
@@ -652,8 +711,8 @@
         function render()
         {
             const { loadedImages, folders, foldersVisible, activeImages,
-                    overlayOpen, currentIndex, shuffled, slideshowTimer,
-                    swipeAnimations } = state;
+                overlayOpen, currentIndex, shuffled, slideshowTimer,
+                swipeAnimations, overlaySettingsOpen } = state;
 
             // --- Info bar ---
             info.textContent = `${loadedImages.length} image${loadedImages.length !== 1 ? 's' : ''} loaded.`;
@@ -727,9 +786,14 @@
                 });
             }
 
-            // --- Toggles ---
+            // --- Toggles (topbar) ---
             shuffleToggle.checked = shuffled;
             swipeAnimToggle.checked = swipeAnimations;
+
+            // --- Overlay settings panel ---
+            overlaySettingsBody.style.display = overlaySettingsOpen ? 'flex' : 'none';
+            overlayDurationInput.value = state.intervalMs / 1000;
+            overlaySwipeAnimToggle.checked = swipeAnimations;
 
             // --- Overlay ---
             overlay.classList.toggle('open', overlayOpen);
@@ -862,7 +926,7 @@
         });
 
         // ============================================================
-        // Shuffle + swipe anim toggles
+        // Shuffle + Swipe Animations toggles
         // ============================================================
         shuffleToggle.addEventListener('change', () =>
         {
@@ -930,7 +994,7 @@
                 return;
             }
             state.overlayOpen = true;
-            state.intervalMs = Math.max(0.1, parseFloat(durationInput.value)) * 1000;
+            state.intervalMs = Math.max(0.1, parseFloat(overlayDurationInput.value)) * 1000;
             stopSlideshow();
             if (!resume) showAt(state.currentIndex);
             state.slideshowTimer = setInterval(() => next(), state.intervalMs);
@@ -958,15 +1022,32 @@
 
         playPauseBtn.addEventListener('click', togglePlayPause);
 
-        durationInput.addEventListener('change', () =>
+        // ============================================================
+        // Overlay settings panel
+        // ============================================================
+        overlaySettingsBtn.addEventListener('click', () =>
         {
-            state.intervalMs = Math.max(0.1, parseFloat(durationInput.value) || 2) * 1000;
+            state.overlaySettingsOpen = !state.overlaySettingsOpen;
+            render();
+        });
+
+        overlayDurationInput.addEventListener('change', () =>
+        {
+            state.intervalMs = Math.max(0.1, parseFloat(overlayDurationInput.value) || 2) * 1000;
             if (state.slideshowTimer) startSlideshow(true);
         });
 
-        durationInput.addEventListener('focus', () =>
+        overlayDurationInput.addEventListener('focus', () =>
         {
-            setTimeout(() => durationInput.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400);
+            setTimeout(() => overlayDurationInput.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400);
+        });
+
+        overlaySwipeAnimToggle.addEventListener('change', () =>
+        {
+            state.swipeAnimations = overlaySwipeAnimToggle.checked;
+            // Keep topbar toggle in sync
+            swipeAnimToggle.checked = state.swipeAnimations;
+            render();
         });
 
         // ============================================================
@@ -1007,8 +1088,8 @@
             if (!state.overlayOpen) return;
             if (e.key === 'Escape') closeOverlay();
             if (e.key === 'ArrowRight') { stopSlideshow(); next(); }
-            if (e.key === 'ArrowLeft')  { stopSlideshow(); prev(); }
-            if (e.key === ' ')          { e.preventDefault(); togglePlayPause(); }
+            if (e.key === 'ArrowLeft') { stopSlideshow(); prev(); }
+            if (e.key === ' ') { e.preventDefault(); togglePlayPause(); }
         });
 
         // ============================================================
@@ -1068,55 +1149,55 @@
             if (state.swipeAnimations && swipeLocked === 'h')
             {
                 // --- Animated swipe path ---
-                        const W = slideBox.offsetWidth;
+                const W = slideBox.offsetWidth;
                 const threshold = W * 0.25; // 25% of screen width to commit
-                        const wasPlaying = !!state.slideshowTimer;
+                const wasPlaying = !!state.slideshowTimer;
 
-                        if (dx > threshold)
-                        {
+                if (dx > threshold)
+                {
                     // Committed left-to-right swipe → go to prev
-                            swipeInFlight = true;
-                            slideTrack.style.transition = 'transform 0.3s ease';
-                            slideTrack.style.transform = 'translateX(0)';
-                            slideTrack.addEventListener('transitionend', () =>
-                            {
-                                swipeInFlight = false;
-                                stopSlideshow();
-                        prev(); // calls render(), which resets track to centre
-                                if (wasPlaying) startSlideshow(true);
-                            }, { once: true });
-                        }
-                        else if (dx < -threshold)
-                        {
-                    // Committed right-to-left swipe → go to next
-                            swipeInFlight = true;
-                            slideTrack.style.transition = 'transform 0.3s ease';
-                            slideTrack.style.transform = `translateX(${-2 * W}px)`;
-                            slideTrack.addEventListener('transitionend', () =>
-                            {
-                                swipeInFlight = false;
-                                stopSlideshow();
-                                next();
-                                if (wasPlaying) startSlideshow(true);
-                            }, { once: true });
-                        }
-                        else
-                        {
-                            // Not far enough — spring back to centre
-                            slideTrack.style.transition = 'transform 0.3s ease';
-                            slideTrack.style.transform = `translateX(${-W}px)`;
-                        }
-                    }
-            else if (!state.swipeAnimations && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50)
+                    swipeInFlight = true;
+                    slideTrack.style.transition = 'transform 0.3s ease';
+                    slideTrack.style.transform = 'translateX(0)';
+                    slideTrack.addEventListener('transitionend', () =>
                     {
-                        const wasPlaying = !!state.slideshowTimer;
+                        swipeInFlight = false;
                         stopSlideshow();
-                        dx > 0 ? prev() : next();
+                        prev(); // calls render(), which resets track to centre
                         if (wasPlaying) startSlideshow(true);
-                    }
+                    }, { once: true });
+                }
+                else if (dx < -threshold)
+                {
+                    // Committed right-to-left swipe → go to next
+                    swipeInFlight = true;
+                    slideTrack.style.transition = 'transform 0.3s ease';
+                    slideTrack.style.transform = `translateX(${-2 * W}px)`;
+                    slideTrack.addEventListener('transitionend', () =>
+                    {
+                        swipeInFlight = false;
+                        stopSlideshow();
+                        next();
+                        if (wasPlaying) startSlideshow(true);
+                    }, { once: true });
+                }
+                else
+                {
+                    // Not far enough — spring back to centre
+                    slideTrack.style.transition = 'transform 0.3s ease';
+                    slideTrack.style.transform = `translateX(${-W}px)`;
+                }
+            }
+            else if (!state.swipeAnimations && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50)
+            {
+                const wasPlaying = !!state.slideshowTimer;
+                stopSlideshow();
+                dx > 0 ? prev() : next();
+                if (wasPlaying) startSlideshow(true);
+            }
             else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 150)
-                        {
-                            closeOverlay();
+            {
+                closeOverlay();
             }
         });
 

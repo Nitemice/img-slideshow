@@ -607,10 +607,10 @@
         // ============================================================
         const state = {
             // Image data
-            loadedImages: [],   // [{ name, folder, url }]
+            loadedImages: {},   // { name: { name, folder, url }}
             activeImages: [],   // filtered + sorted subset of loadedImages
 
-            // Folder filter: { folderName: boolean }
+            // Folder filter: { folderName: { checked, count } }
             // Keys are added when images load; true = included.
             folders: {},
             foldersVisible: false,
@@ -695,7 +695,7 @@
 
         function buildActiveImages()
         {
-            const filtered = state.loadedImages.filter(img => state.folders[img.folder] !== false);
+            const filtered = Object.values(state.loadedImages).filter(img => state.folders[img.folder].checked);
             if (state.shuffled)
             {
                 return shuffleArray(filtered);
@@ -715,10 +715,11 @@
                 swipeAnimations, overlaySettingsOpen } = state;
 
             // --- Info bar ---
-            info.textContent = `${loadedImages.length} image${loadedImages.length !== 1 ? 's' : ''} loaded.`;
+            const loadedImagesCount = Object.keys(loadedImages).length;
+            info.textContent = `${loadedImagesCount} image${loadedImagesCount !== 1 ? 's' : ''} loaded.`;
 
             // --- Folder toggle button ---
-            const hasFolders = loadedImages.length > 0;
+            const hasFolders = loadedImagesCount > 0;
             folderToggle.style.display = hasFolders ? 'flex' : 'none';
             folderToggle.textContent = foldersVisible ? 'Hide Folders' : 'Show Folders';
 
@@ -733,12 +734,6 @@
             {
                 folderFilterList.innerHTML = '';
 
-                const folderCounts = {};
-                loadedImages.forEach(img =>
-                {
-                    folderCounts[img.folder] = (folderCounts[img.folder] || 0) + 1;
-                });
-
                 currentFolderKeys.forEach((folder, idx) =>
                 {
                     const inputId = safeId('folder', folder, idx);
@@ -751,13 +746,13 @@
                     input.id = inputId;
                     input.addEventListener('change', e =>
                     {
-                        state.folders[folder] = e.target.checked;
+                        state.folders[folder].checked = e.target.checked;
                         state.activeImages = buildActiveImages();
                         render();
                     });
 
                     label.appendChild(input);
-                    label.append(` ${folder} (${folderCounts[folder]})`);
+                    label.append(` ${folder} (${state.folders[folder].count})`);
                     folderFilterList.appendChild(label);
                 });
             }
@@ -765,7 +760,7 @@
             // Sync checkbox checked states from state.folders
             folderFilterList.querySelectorAll('label').forEach(label =>
             {
-                label.querySelector('input').checked = folders[label.dataset.folder] !== false;
+                label.querySelector('input').checked = folders[label.dataset.folder].checked;
             });
 
             // --- Gallery (rebuild only when activeImages changes) ---
@@ -890,28 +885,64 @@
             const paths = arr.map(f => f.webkitRelativePath || f.name);
             const ancestor = deepestCommonAncestor(paths);
 
-            arr.forEach(f =>
-            {
-                const relPath = (f.webkitRelativePath || f.name).substring(ancestor.length).replace(/^\/+/, '');
-                const folder = relPath.includes('/') ? relPath.split('/').slice(0, -1).join('/') : '(root)';
-                if (!state.loadedImages.some(l => l.folder === folder && l.name === f.name))
-                {
-                    state.loadedImages.push({ name: f.name, folder, url: URL.createObjectURL(f) });
-                    // New folders default to included; existing folders keep their checked state
-                    if (!(folder in state.folders)) state.folders[folder] = true;
-                }
-            });
+            // Show immediate feedback so the user knows something is happening
+            info.textContent = `Loading 0 / ${arr.length}…`;
 
-            state.activeImages = buildActiveImages();
-            fileInput.value = '';
-            render();
+            const BATCH_SIZE = 50;
+            let index = 0;
+
+            function processBatch()
+            {
+                const end = Math.min(index + BATCH_SIZE, arr.length);
+
+                for (let i = index; i < end; i++)
+                {
+                    const f = arr[i];
+                    const relPath = (f.webkitRelativePath || f.name).substring(ancestor.length).replace(/^\/+/, '');
+                    const folder = relPath.includes('/') ? relPath.split('/').slice(0, -1).join('/') : '(root)';
+                    const key = `${folder}\0${f.name}`;
+                    if (!Object.hasOwn(state.loadedImages, key))
+                    {
+                        state.loadedImages[key] = { name: f.name, folder, url: URL.createObjectURL(f) };
+                        if (!(folder in state.folders))
+                        {
+                            // New folders default to included
+                            state.folders[folder] = { checked: true, count: 1 }
+                        }
+                        else   
+                        {
+                            state.folders[folder].count += 1;
+                        }
+                    }
+                }
+
+                index = end;
+
+                // Update progress on each batch
+                info.textContent = `Loading ${Math.min(index, arr.length)} / ${arr.length}…`;
+
+                if (index < arr.length)
+                {
+                    // Yield to the browser, then continue
+                    requestAnimationFrame(processBatch);
+                }
+                else
+                {
+                    // All done — final state update and render
+                    state.activeImages = buildActiveImages();
+                    fileInput.value = '';
+                    render();
+                }
+            }
+
+            processBatch();
         }
 
         clearBtn.addEventListener('click', () =>
         {
-            state.loadedImages.forEach(i => { try { URL.revokeObjectURL(i.url); } catch { } });
+            Object.values(state.loadedImages).forEach(i => { try { URL.revokeObjectURL(i.url); } catch { } });
             preloadCache.clear();
-            state.loadedImages = [];
+            state.loadedImages = {};
             state.activeImages = [];
             state.folders = {};
             state.foldersVisible = false;
@@ -933,15 +964,15 @@
 
         toggleAllBtn.addEventListener('click', () =>
         {
-            const anyUnchecked = Object.values(state.folders).some(v => v === false);
-            Object.keys(state.folders).forEach(k => state.folders[k] = anyUnchecked);
+            const anyUnchecked = Object.values(state.folders).some(v => !v.checked);
+            Object.keys(state.folders).forEach(k => state.folders[k].checked = anyUnchecked);
             state.activeImages = buildActiveImages();
             render();
         });
 
         invertBtn.addEventListener('click', () =>
         {
-            Object.keys(state.folders).forEach(k => state.folders[k] = !state.folders[k]);
+            Object.keys(state.folders).forEach(k => state.folders[k].checked = !state.folders[k].checked);
             state.activeImages = buildActiveImages();
             render();
         });
@@ -1249,7 +1280,6 @@
         function releaseWakeLock()
         {
             if (state.wakeLock) { state.wakeLock.release(); state.wakeLock = null; }
-            notice.textContent = '';
         }
 
         // ============================================================

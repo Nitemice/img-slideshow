@@ -16,6 +16,7 @@
             --border: #2e2e34;
             --text: #e6e6f0;
             --subtext: #9b9bb2;
+            --caption: rgba(0, 224, 255, 0.4);
 
             --accent: #b845ff;
             /* Neon purple */
@@ -24,6 +25,8 @@
             /* Cyan */
             --danger: #ff3b58;
             /* Pink-red for alerts */
+
+            --overlay-shade: rgba(12, 12, 15, 0.95);
         }
 
         body {
@@ -86,12 +89,12 @@
             border: none;
             color: #1a001f;
             /* Deep plum text for contrast */
-            box-shadow: 0 0 10px rgba(184, 69, 255, 0.5);
+            box-shadow: 0 0 10px color-mix(in srgb, var(--accent), transparent 50%);
         }
 
         .btn.primary:hover {
             background: var(--accent-hover);
-            box-shadow: 0 0 12px rgba(202, 102, 255, 0.6);
+            box-shadow: 0 0 12px color-mix(in srgb, var(--accent-hover), transparent 40%);
         }
 
         .btn.secondary {
@@ -122,6 +125,10 @@
             font-size: 15px;
         }
 
+        .btn.icon-btn.big-icon {
+            font-size: 25px;
+        }
+
         .btn.icon-btn svg {
             display: block;
             pointer-events: none;
@@ -134,7 +141,7 @@
         /* === Toggle switch === */
         .toggle-group {
             display: flex;
-            flex-direction: row-reverse;
+            flex-direction: row;
             gap: 6px;
             align-items: center;
         }
@@ -217,7 +224,7 @@
             position: fixed;
             inset: 0;
             display: none;
-            background: rgba(12, 12, 15, 0.95);
+            background: var(--overlay-shade);
             align-items: center;
             justify-content: center;
             z-index: 999;
@@ -230,20 +237,17 @@
         }
 
         #overlay:not(.show-ui) #bottomControls,
-        #overlay:not(.show-ui) #overlaySettings,
         #overlay:not(.show-ui) #overlayCaption {
             opacity: 0;
             pointer-events: none;
         }
 
         #overlay.show-ui #bottomControls,
-        #overlay.show-ui #overlaySettings,
         #overlay.show-ui #overlayCaption {
             opacity: 1;
         }
 
         #bottomControls,
-        #overlaySettings,
         #overlayCaption {
             transition: opacity 0.25s ease;
         }
@@ -290,7 +294,7 @@
             object-fit: contain;
             border-radius: 8px;
             border: 1px solid var(--accent);
-            box-shadow: 0 0 20px rgba(184, 69, 255, 0.4);
+            box-shadow: 0 0 20px color-mix(in srgb, var(--accent), transparent 60%);
             pointer-events: none;
             /* touches go to overlay/track */
             user-select: none;
@@ -306,7 +310,7 @@
             font-weight: 500;
             letter-spacing: 0.5px;
             pointer-events: none;
-            text-shadow: 0 0 8px rgba(0, 224, 255, 0.4);
+            text-shadow: 0 0 8px var(--caption);
             /* Prevent long filenames overlapping corner buttons */
             padding: 0 80px;
             box-sizing: border-box;
@@ -324,7 +328,7 @@
             display: flex;
             gap: 8px;
             align-items: center;
-            background: rgba(29, 29, 34, 0.85);
+            background: color-mix(in srgb, var(--panel), transparent 15%);
             padding: 6px 10px;
             border-radius: 6px;
             border: 1px solid var(--border);
@@ -333,15 +337,9 @@
 
         /* === Overlay settings panel === */
         #overlaySettings {
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
+            position: relative;
             display: flex;
-            flex-direction: column;
             align-items: center;
-            gap: 6px;
-            z-index: 10;
         }
 
         #overlaySettingsBtn {
@@ -352,9 +350,13 @@
         }
 
         #overlaySettingsBody {
-            background: rgba(29, 29, 34, 0.92);
+            position: absolute;
+            bottom: calc(100% + 10px);
+            /* sit above the bar */
+            left: 0;
+            background: color-mix(in srgb, var(--panel), transparent 8%);
             padding: 10px 14px;
-            border-radius: 6px;
+            border-radius: 10px;
             border: 1px solid var(--border);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
             display: flex;
@@ -365,7 +367,6 @@
 
         #overlaySettingsBody label {
             color: var(--text);
-            font-size: 13px;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -526,29 +527,30 @@
             <!-- Icon buttons: content set by JS so fullscreenchange can swap the SVG -->
             <button id="fullscreenBtn" class="btn secondary icon-btn" aria-label="Fullscreen"
                 title="Fullscreen"></button>
-            <div id="overlaySettings">
-                <button id="overlaySettingsBtn" class="btn secondary icon-btn" aria-label="Toggle settings">⚙</button>
-                <div id="overlaySettingsBody">
-                    <label for="overlayDurationInput">
-                        Duration (s):
-                        <input id="overlayDurationInput" type="number" min="0.1" step="0.5" value="2"
-                            inputmode="decimal" />
-                    </label>
-                    <div class="toggle-group">
-                        <span>Swipe Animations</span>
-                        <label class="switch">
-                            <input type="checkbox" id="overlaySwipeAnimToggle" checked />
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                </div>
-            </div>
             <button id="closeOverlay" class="btn ghost icon-btn" aria-label="Close" title="Close">✕</button>
 
             <div id="bottomControls">
-                <button id="prevBtn" class="btn secondary" aria-label="Previous slide">⏮ Prev</button>
-                <button id="playPauseBtn" class="btn" aria-label="Play or pause slideshow">▶ Play</button>
-                <button id="nextBtn" class="btn secondary" aria-label="Next slide">Next ⏭</button>
+                <div id="overlaySettings">
+                    <button id="overlaySettingsBtn" class="btn secondary icon-btn"
+                        aria-label="Toggle settings">⚙</button>
+                    <div id="overlaySettingsBody">
+                        <label for="overlayDurationInput">
+                            Duration (sec):
+                            <input id="overlayDurationInput" type="number" min="0.1" step="0.5" value="2"
+                                inputmode="decimal" />
+                        </label>
+                        <div class="toggle-group">
+                            <span>Swipe Animations: </span>
+                            <label class="switch">
+                                <input type="checkbox" id="overlaySwipeAnimToggle" checked />
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <button id="prevBtn" class="btn secondary icon-btn big-icon" aria-label="Previous slide">⏮</button>
+                <button id="playPauseBtn" class="btn icon-btn big-icon" aria-label="Play or pause slideshow">▶</button>
+                <button id="nextBtn" class="btn secondary icon-btn big-icon" aria-label="Next slide">⏭</button>
             </div>
 
         </div>
@@ -836,7 +838,7 @@
             }
 
             // --- Play/pause label ---
-            playPauseBtn.textContent = slideshowTimer ? '⏸ Pause' : '▶ Play';
+            playPauseBtn.textContent = slideshowTimer ? '⏸' : '▶';
         }
 
         // ============================================================

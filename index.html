@@ -4,6 +4,8 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#b845ff" />
+    <link rel="manifest" href="manifest.json" />
     <title>ORIS Image Slideshow</title>
     <style>
         :root {
@@ -1288,6 +1290,16 @@
         // Initial render
         // ============================================================
         render();
+
+        // ============================================================
+        // PWA service worker registration
+        // ============================================================
+        if ('serviceWorker' in navigator)
+        {
+            navigator.serviceWorker.register('./sw.js').catch(err =>
+                console.warn('Service worker registration failed:', err)
+            );
+        }
 
     </script>
 </body>

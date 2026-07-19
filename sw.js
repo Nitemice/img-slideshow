@@ -2,13 +2,26 @@
 // Minimal implementation — just enough for Android installability.
 // No caching strategy needed since all content is local files.
 const CACHE_NAME = 'oris-v1';
-const SHELL = ['./index.html', './manifest.json'];
+
+// Only the app shell — 16px/32px icons are embedded in the HTML
+// and don't need to be cached separately.
+const SHELL = [
+    './index.html',
+    './manifest.json',
+    './icons/icon-192.png',
+    './icons/icon-512.png',
+    './icons/apple-touch-icon.png',
+];
 
 self.addEventListener('install', e =>
 {
-    // Cache the app shell so it works offline
+    // Cache the app shell so it works offline.
+    // Promise.allSettled lets individual resources fail without
+    // breaking the whole install — important for resilience.
     e.waitUntil(
-        caches.open(CACHE_NAME).then(cache => cache.addAll(SHELL))
+        caches.open(CACHE_NAME).then(cache =>
+            Promise.allSettled(SHELL.map(url => cache.add(url)))
+        )
     );
     self.skipWaiting();
 });
